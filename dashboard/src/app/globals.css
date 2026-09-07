@@ -117,8 +117,32 @@ body::before {
   filter: drop-shadow(0 0 8px rgba(255, 69, 0, 0.5));
 }
 
+.status-bar__icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-bar__icon-beacon {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 69, 0, 0.25);
+  animation: pulse-beacon 2.5s infinite;
+  z-index: 0;
+}
+
+@keyframes pulse-beacon {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
 .status-bar__title {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -128,6 +152,19 @@ body::before {
   background-clip: text;
 }
 
+.status-bar__version {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ocean-cyan);
+  background: rgba(0, 242, 255, 0.1);
+  border: 1px solid rgba(0, 242, 255, 0.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  -webkit-text-fill-color: var(--ocean-cyan);
+}
+
 .status-bar__subtitle {
   font-size: 11px;
   color: var(--text-secondary);
@@ -135,10 +172,72 @@ body::before {
   font-weight: 400;
 }
 
+.status-bar__center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 6px 16px;
+}
+
+.status-bar__clock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.status-bar__clock-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.status-bar__clock-utc {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.status-bar__sensors-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 12px;
+}
+
+.status-bar__sensors-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+}
+
+.status-bar__cluster-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
 .status-bar__right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 14px;
 }
 
 .status-bar__live {
@@ -191,13 +290,19 @@ body::before {
 /* ===== MAIN LAYOUT ===== */
 .dashboard {
   display: grid;
-  grid-template-columns: 1fr 360px;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-columns: 1fr 380px;
   gap: var(--gap-md);
   padding: var(--gap-md);
   min-height: calc(100vh - 60px);
   position: relative;
   z-index: 1;
+}
+
+.dashboard__left-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  min-width: 0;
 }
 
 /* ===== CARDS ===== */
@@ -247,25 +352,73 @@ body::before {
   letter-spacing: 0.5px;
 }
 
+.card__phase-chip {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(0, 242, 255, 0.12);
+  color: #00f2ff;
+  border: 1px solid rgba(0, 242, 255, 0.3);
+  letter-spacing: 0.5px;
+}
+
 .card__body {
   padding: 18px;
 }
 
 /* ===== MAP ===== */
 .map-container {
-  grid-column: 1;
-  grid-row: 1 / 3;
-  min-height: 400px;
+  min-height: 440px;
+  height: 480px;
   position: relative;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid rgba(0, 242, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.map-tactical-header {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(6, 10, 20, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 242, 255, 0.35);
+  padding: 6px 14px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.map-tactical-header__icon {
+  font-size: 13px;
+}
+
+.map-tactical-header__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #00f2ff;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.map-tactical-header__coords {
+  font-size: 10px;
+  color: var(--text-muted);
+  border-left: 1px solid rgba(0, 242, 255, 0.25);
+  padding-left: 8px;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .map-container .leaflet-container {
   height: 100%;
   width: 100%;
-  background: var(--bg-primary);
+  background: #060a14;
 }
 
 /* ===== METRIC CARDS SIDEBAR ===== */
@@ -775,32 +928,159 @@ body::before {
   border-left: 3px solid var(--status-critical);
 }
 
-/* ===== SIMULATION CONTROLS ===== */
-.sim-controls {
+/* ===== TELEMETRY HUD (AUTONOMOUS MISSION CONTROL) ===== */
+.telemetry-hud {
   grid-column: 1 / -1;
+  background: linear-gradient(180deg, rgba(12, 20, 38, 0.85) 0%, rgba(6, 10, 20, 0.95) 100%);
+  border: 1px solid rgba(0, 242, 255, 0.22);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(16px);
+  padding: 16px 20px;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--gap-md);
-  padding: 16px;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
 }
 
-.sim-controls__indicator {
+.telemetry-hud__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.telemetry-hud__badge-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.telemetry-hud__mode-badge {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  padding: 8px 14px;
+  background: rgba(0, 230, 118, 0.1);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+  padding: 6px 12px;
   border-radius: 20px;
-  font-size: 12px;
-  color: #34d399;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #00e676;
+}
+
+.telemetry-hud__phase-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 6px 14px;
+  transition: all 0.5s ease;
+}
+
+.telemetry-hud__phase-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 1px;
+}
+
+.telemetry-hud__phase-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
   letter-spacing: 0.3px;
 }
 
-.sim-controls__indicator strong {
-  color: #6ee7b7;
+.telemetry-hud__timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-subtle);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.telemetry-hud__timer-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.telemetry-hud__timer-value {
+  font-size: 13px;
+  font-weight: 800;
+  color: #00f2ff;
+}
+
+.telemetry-hud__progress-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.telemetry-hud__progress-bar {
+  height: 100%;
+  transition: width 1s linear, background 0.5s ease;
+}
+
+.telemetry-hud__chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.telemetry-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.telemetry-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.telemetry-chip__dot--kafka {
+  background: #ff9100;
+  box-shadow: 0 0 6px #ff9100;
+}
+
+.telemetry-chip__dot--flink {
+  background: #00f2ff;
+  box-shadow: 0 0 6px #00f2ff;
+}
+
+.telemetry-chip__dot--gemini {
+  background: #c084fc;
+  box-shadow: 0 0 6px #c084fc;
+}
+
+.telemetry-chip__label {
+  color: var(--text-muted);
+}
+
+.telemetry-chip__val {
+  color: #e2e8f0;
   font-weight: 600;
 }
 
@@ -811,6 +1091,12 @@ body::before {
   border-radius: 50%;
   box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
   animation: pulse-green 2s infinite;
+}
+
+.live-dot-pulse--off {
+  background-color: var(--status-critical);
+  box-shadow: none;
+  animation: none;
 }
 
 @keyframes pulse-green {
@@ -828,81 +1114,97 @@ body::before {
   }
 }
 
-.sim-btn {
+/* ===== REAL-TIME SEISMOGRAPH ===== */
+.seismograph-container {
+  background: #060a14;
+  border: 1px solid rgba(0, 242, 255, 0.2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.seismograph__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0, 242, 255, 0.04);
+  border-bottom: 1px solid rgba(0, 242, 255, 0.12);
+}
+
+.seismograph__title {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 24px;
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: 'Inter', sans-serif;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #38bdf8;
 }
 
-.sim-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
+.seismograph__pulse-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00f2ff;
+  box-shadow: 0 0 8px #00f2ff;
+  animation: pulse-dot 1.5s infinite;
 }
 
-.sim-btn:active {
-  transform: translateY(0);
+.seismograph__telemetry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
 }
 
-.sim-btn--real-2018 {
-  border-color: rgba(168, 85, 247, 0.4);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.22), rgba(219, 39, 119, 0.18));
-  color: #f3e8ff;
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15);
+.seismograph__stat {
+  color: var(--text-secondary);
 }
 
-.sim-btn--real-2018:hover {
-  border-color: #c084fc;
-  box-shadow: 0 0 20px rgba(192, 132, 252, 0.4);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.35), rgba(219, 39, 119, 0.28));
-  color: #ffffff;
+.seismograph__stat strong {
+  color: #f1f5f9;
 }
 
-.sim-btn--volcanic {
-  border-color: rgba(255, 69, 0, 0.3);
-  background: rgba(255, 69, 0, 0.08);
+.seismograph__badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: rgba(0, 242, 255, 0.12);
+  color: #00f2ff;
+  border: 1px solid rgba(0, 242, 255, 0.3);
 }
 
-.sim-btn--volcanic:hover {
-  border-color: var(--volcanic-orange);
-  box-shadow: var(--shadow-glow-orange);
-  background: rgba(255, 69, 0, 0.15);
+.seismograph__badge--critical_surge_tsunami {
+  background: rgba(255, 42, 95, 0.2);
+  color: #ff2a5f;
+  border-color: rgba(255, 42, 95, 0.5);
+  animation: pulse-glow 1s infinite;
 }
 
-.sim-btn--tsunami {
-  border-color: rgba(6, 182, 212, 0.3);
-  background: rgba(6, 182, 212, 0.08);
+.seismograph__badge--flank_deformation {
+  background: rgba(255, 145, 0, 0.2);
+  color: #ff9100;
+  border-color: rgba(255, 145, 0, 0.5);
 }
 
-.sim-btn--tsunami:hover {
-  border-color: var(--ocean-cyan);
-  box-shadow: var(--shadow-glow-cyan);
-  background: rgba(6, 182, 212, 0.15);
+.seismograph__canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  background: #060a14;
 }
 
-.sim-btn--reset {
-  border-color: var(--border-subtle);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.sim-btn--reset:hover {
-  border-color: var(--border-medium);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.sim-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none !important;
+.seismograph__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* ===== GOVERNANCE ===== */

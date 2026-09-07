@@ -23,6 +23,19 @@ const (
 	ModeTsunamiScenario
 )
 
+// LifecyclePhase describes the current autonomous real-life simulation phase
+type LifecyclePhase struct {
+	PhaseNumber   int       `json:"phase_number"`
+	PhaseName     string    `json:"phase_name"`
+	PhaseTitle    string    `json:"phase_title"`
+	ActivityLevel float64   `json:"activity_level"`
+	DurationSec   int       `json:"duration_sec"`
+	ElapsedSec    int       `json:"elapsed_sec"`
+	SeismicEnergy float64   `json:"seismic_energy"` // in mm/s for live seismograph
+	Status        string    `json:"status"`
+	Timestamp     time.Time `json:"timestamp"`
+}
+
 // Simulator orchestrates event generation across all domains
 type Simulator struct {
 	producer  *kafka.Producer
@@ -38,6 +51,10 @@ type Simulator struct {
 	// Current computed state (local approximation before Flink processes)
 	currentActivity float64
 	trendDirection  string
+
+	// Autonomous lifecycle state
+	currentPhase      LifecyclePhase
+	onTriggerAnalysis func(models.ActivityIndex)
 }
 
 // NewSimulator creates a new event simulator
@@ -46,14 +63,32 @@ func NewSimulator(producer *kafka.Producer, h *hub.SSEHub) *Simulator {
 		producer:        producer,
 		hub:             h,
 		mode:            ModeNormal,
-		currentActivity: 18.0 + rand.Float64()*10.0,
+		currentActivity: 18.0 + rand.Float64()*6.0,
 		trendDirection:  "STABLE",
+		currentPhase: LifecyclePhase{
+			PhaseNumber:   1,
+			PhaseName:     "QUIESCENT_BASELINE",
+			PhaseTitle:    "Phase 1: Quiescent Surveillance & Ambient Ingestion",
+			ActivityLevel: 21.4,
+			DurationSec:   35,
+			ElapsedSec:    1,
+			SeismicEnergy: 1.2,
+			Status:        "NORMAL",
+			Timestamp:     time.Now(),
+		},
 	}
 }
 
-// Start begins generating baseline events
+// SetAnalysisTrigger binds the AI analysis callback
+func (s *Simulator) SetAnalysisTrigger(fn func(models.ActivityIndex)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onTriggerAnalysis = fn
+}
+
+// Start begins generating baseline events and starts autonomous crisis lifecycle
 func (s *Simulator) Start(ctx context.Context) {
-	log.Println("🌋 Event simulator started — generating baseline events")
+	log.Println("🌋 Event simulator started — running autonomous real-life surveillance lifecycle")
 
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -66,6 +101,7 @@ func (s *Simulator) Start(ctx context.Context) {
 	go s.generateMaritimeEvents(ctx)
 	go s.generatePopulationEvents(ctx)
 	go s.broadcastMetrics(ctx)
+	go s.startAutonomousLifecycle(ctx)
 }
 
 // TriggerVolcanicEscalation starts the volcanic escalation scenario
@@ -372,3 +408,188 @@ func (s *Simulator) broadcastMetrics(ctx context.Context) {
 func jitter(base time.Duration, factor float64) time.Duration {
 	return base + time.Duration(float64(base)*factor*(rand.Float64()-0.5))
 }
+
+// GetLifecyclePhase returns the current phase of the autonomous simulation
+func (s *Simulator) GetLifecyclePhase() LifecyclePhase {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentPhase
+}
+
+// startAutonomousLifecycle runs a continuous, realistic 5-phase volcanic crisis lifecycle
+func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
+	phases := []struct {
+		number   int
+		name     string
+		title    string
+		duration int // seconds
+		minAct   float64
+		maxAct   float64
+		energy   float64
+		status   string
+		trend    string
+		desc     string
+		evtType  string
+	}{
+		{
+			number:   1,
+			name:     "QUIESCENT_BASELINE",
+			title:    "Phase 1: Quiescent Surveillance & Ambient Ingestion",
+			duration: 35,
+			minAct:   18.0,
+			maxAct:   24.0,
+			energy:   1.2,
+			status:   "NORMAL",
+			trend:    "STABLE",
+			desc:     "Ambient baseline: Micro-seismic tremor 0.4–1.2 mm/s, Open-Meteo live atmospheric telemetry nominal",
+			evtType:  "VOLCANIC",
+		},
+		{
+			number:   2,
+			name:     "MAGMA_INTRUSION_SWARM",
+			title:    "Phase 2: Micro-seismic Swarm & Magmatic Pressurization",
+			duration: 25,
+			minAct:   42.0,
+			maxAct:   58.0,
+			energy:   5.8,
+			status:   "ADVISORY",
+			trend:    "RISING SWARM",
+			desc:     "Hydrothermal pressurization detected: Shallow swarm at 3.5km depth, acoustic tremor surge +140%",
+			evtType:  "SEISMIC",
+		},
+		{
+			number:   3,
+			name:     "FLANK_DEFORMATION",
+			title:    "Phase 3: Flank Instability & Thermal Hotspot Surge",
+			duration: 20,
+			minAct:   72.0,
+			maxAct:   85.0,
+			energy:   14.5,
+			status:   "WATCH",
+			trend:    "RAPID INFLATION",
+			desc:     "Radial tiltmeter measures +0.48cm ground displacement on SW rim; infrared thermal radiance heating +3.2°C",
+			evtType:  "SATELLITE",
+		},
+		{
+			number:   4,
+			name:     "CRITICAL_SURGE_TSUNAMI",
+			title:    "Phase 4: Flank Displacement & Tsunami Wavefront",
+			duration: 25,
+			minAct:   94.0,
+			maxAct:   98.5,
+			energy:   38.0,
+			status:   "CRITICAL ALERT",
+			trend:    "COLLAPSE DETECTED",
+			desc:     "🚨 CRITICAL: Rapid submarine mass displacement! Sea level spike detected on Anyer & Ciwandan tide gauges!",
+			evtType:  "OCEAN",
+		},
+		{
+			number:   5,
+			name:     "POST_SURGE_RECOVERY",
+			title:    "Phase 5: Wave Dissipation & Post-Crisis Calibration",
+			duration: 20,
+			minAct:   35.0,
+			maxAct:   20.0,
+			energy:   2.8,
+			status:   "RECOVERY",
+			trend:    "ATTENUATING",
+			desc:     "Wave energy attenuating along Sunda Strait coastline. Tremor amplitude decaying to nominal baseline.",
+			evtType:  "VOLCANIC",
+		},
+	}
+
+	for {
+		for _, p := range phases {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			// Broadcast initial phase announcement event
+			s.hub.BroadcastAll("event", map[string]interface{}{
+				"type":        p.evtType,
+				"description": fmt.Sprintf("🛰️ [AUTONOMOUS CYCLE] %s", p.desc),
+				"severity":    p.status,
+				"timestamp":   time.Now(),
+			})
+
+			// Handle Phase 4 tsunami scenario
+			if p.number == 4 {
+				scenario := models.TsunamiScenario{
+					Active:        true,
+					DetectionTime: time.Now(),
+					SensorID:      "Marina-Jukung-Anyer",
+					WaveAnomaly:   3.2,
+					AffectedZones: []string{
+						"Zone 1 — Anyer Coastal Strip (Wave: 3.2m, ETA: 22m)",
+						"Zone 2 — Ciwandan Industrial Port (Wave: 2.6m, ETA: 28m)",
+						"Zone 3 — Carita & Labuan Corridor (Wave: 2.9m, ETA: 35m)",
+						"Zone 4 — South Lampung / Rajabasa (Wave: 2.4m, ETA: 31m)",
+					},
+					ResponseActions: []string{
+						"Sound coastal sirens across Banten and South Lampung",
+						"Enforce immediate vertical evacuation to >15m elevation",
+						"Halt Merak-Bakauheni maritime ferry transit",
+						"Deploy BASARNAS and BNPB emergency forward response units",
+					},
+					Severity:  "CRITICAL",
+					Timestamp: time.Now(),
+				}
+				s.hub.BroadcastAll("tsunami", scenario)
+				_ = s.producer.Produce(config.TopicNames.TsunamiScenarios, "tsunami-scenario", scenario)
+			} else if p.number == 5 {
+				// Reset tsunami
+				s.hub.BroadcastAll("tsunami", models.TsunamiScenario{Active: false, Timestamp: time.Now()})
+			}
+
+			// Progress through duration second by second
+			for sec := 0; sec < p.duration; sec++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				progressRatio := float64(sec) / float64(p.duration)
+				activity := p.minAct + (p.maxAct-p.minAct)*progressRatio
+
+				s.mu.Lock()
+				s.currentActivity = activity
+				s.trendDirection = p.trend
+				phaseObj := LifecyclePhase{
+					PhaseNumber:   p.number,
+					PhaseName:     p.name,
+					PhaseTitle:    p.title,
+					ActivityLevel: activity,
+					DurationSec:   p.duration,
+					ElapsedSec:    sec + 1,
+					SeismicEnergy: p.energy * (0.85 + 0.3*rand.Float64()),
+					Status:        p.status,
+					Timestamp:     time.Now(),
+				}
+				s.currentPhase = phaseObj
+				s.mu.Unlock()
+
+				s.hub.BroadcastAll("lifecycle_phase", phaseObj)
+
+				// Automatically trigger AI Analysis in Phase 3 or 4
+				if (p.number == 3 && sec == 5) || (p.number == 4 && sec == 3) {
+					s.mu.RLock()
+					triggerFn := s.onTriggerAnalysis
+					s.mu.RUnlock()
+					if triggerFn != nil {
+						triggerFn(models.ActivityIndex{
+							OverallPercentage: activity,
+							TrendDirection:    p.trend,
+							Timestamp:         time.Now(),
+						})
+					}
+				}
+
+				time.Sleep(1 * time.Second)
+			}
+		}
+	}
+}
+

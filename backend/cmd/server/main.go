@@ -79,6 +79,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Wire AI analysis trigger from autonomous simulator to server analyzer
+	sim.SetAnalysisTrigger(server.TriggerAIAnalysis)
+
 	// Start the simulator
 	sim.Start(ctx)
 

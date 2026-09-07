@@ -140,3 +140,15 @@ export interface SSEMessage {
   event: string;
   data: unknown;
 }
+
+export interface LifecyclePhase {
+  phase_number: number;
+  phase_name: string;
+  phase_title: string;
+  activity_level: number;
+  duration_sec: number;
+  elapsed_sec: number;
+  seismic_energy: number;
+  status: string;
+  timestamp: string;
+}
