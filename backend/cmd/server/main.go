@@ -7,13 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"krakatau-sentinel/internal/ai"
-	"krakatau-sentinel/internal/api"
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/hub"
-	"krakatau-sentinel/internal/kafka"
-	"krakatau-sentinel/internal/models"
-	"krakatau-sentinel/internal/simulator"
+	"gempa-sentinel/internal/ai"
+	"gempa-sentinel/internal/api"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/hub"
+	"gempa-sentinel/internal/kafka"
+	"gempa-sentinel/internal/models"
+	"gempa-sentinel/internal/simulator"
 )
 
 func main() {

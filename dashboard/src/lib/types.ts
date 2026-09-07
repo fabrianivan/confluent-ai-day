@@ -6,17 +6,23 @@ export interface SeismicEvent {
   count: number;
   latitude: number;
   longitude: number;
+  mmi: number;
+  pga: number;
+  fault_zone: string;
   timestamp: string;
 }
 
-export interface VolcanicEvent {
-  type: 'VOLCANIC';
-  activity_level: number;
-  deformation: number;
-  gas_measurement: number;
-  thermal_activity: number;
-  eruption_observation: string;
-  tremor_intensity: number;
+export interface StationEvent {
+  type: 'STATION';
+  station_id: string;
+  station_name: string;
+  latitude: number;
+  longitude: number;
+  signal_quality: number;
+  p_wave_arrival: number;
+  s_wave_arrival: number;
+  pga_recorded: number;
+  status: 'ONLINE' | 'OFFLINE' | 'CLIPPED';
   timestamp: string;
 }
 
@@ -27,6 +33,7 @@ export interface OceanEvent {
   wave_height: number;
   tsunami_sensor_reading: number;
   buoy_data: number;
+  wave_eta: number;
   latitude: number;
   longitude: number;
   timestamp: string;
@@ -45,21 +52,32 @@ export interface WeatherEvent {
 
 export interface SatelliteEvent {
   type: 'SATELLITE';
-  thermal_anomaly: number;
+  ground_displacement: number;
   deformation: number;
-  ash_plume: string;
+  coseismic_slip: number;
   satellite_id: string;
   timestamp: string;
 }
 
-export interface MaritimeEvent {
-  type: 'MARITIME';
-  ship_id: string;
-  ship_name: string;
+export interface InfrastructureEvent {
+  type: 'INFRASTRUCTURE';
+  facility_id: string;
+  facility_name: string;
+  facility_type: string;
   latitude: number;
   longitude: number;
-  speed: number;
-  restricted_zone: boolean;
+  damage_level: string;
+  operational: boolean;
+  timestamp: string;
+}
+
+export interface PopulationEvent {
+  type: 'POPULATION';
+  zone: string;
+  population: number;
+  shelter_capacity: number;
+  evacuation_route_status: string;
+  evacuation_readiness: number;
   timestamp: string;
 }
 
@@ -106,10 +124,10 @@ export interface TsunamiScenario {
 }
 
 export interface SystemStatus {
-  volcanic_activity: number;
+  seismic_intensity: number;
   ocean_status: string;
   weather_status: string;
-  maritime_status: string;
+  infra_status: string;
   active_alerts: number;
   risk_level: string;
   trend_direction: string;
@@ -150,5 +168,10 @@ export interface LifecyclePhase {
   elapsed_sec: number;
   seismic_energy: number;
   status: string;
+  scenario_name?: string;
+  magnitude?: number;
+  depth?: number;
+  fault_zone?: string;
+  mmi?: number;
   timestamp: string;
 }

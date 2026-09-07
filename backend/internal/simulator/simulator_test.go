@@ -3,8 +3,8 @@ package simulator_test
 import (
 	"testing"
 
-	"krakatau-sentinel/internal/hub"
-	"krakatau-sentinel/internal/simulator"
+	"gempa-sentinel/internal/hub"
+	"gempa-sentinel/internal/simulator"
 )
 
 func TestSimulatorStatusAndReset(t *testing.T) {
@@ -19,7 +19,7 @@ func TestSimulatorStatusAndReset(t *testing.T) {
 
 	sim.Reset()
 	resetStatus := sim.GetStatus()
-	if resetStatus.VolcanicActivity <= 0 {
-		t.Errorf("Expected positive baseline activity index, got %f", resetStatus.VolcanicActivity)
+	if resetStatus.SeismicIntensity <= 0 {
+		t.Errorf("Expected positive baseline activity index, got %f", resetStatus.SeismicIntensity)
 	}
 }

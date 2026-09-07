@@ -11,7 +11,7 @@ interface SeismographProps {
 export default function Seismograph({
   seismicEnergy = 1.2,
   activityLevel = 22,
-  phaseName = 'QUIESCENT_BASELINE',
+  phaseName = 'SEISMIC_BASELINE',
 }: SeismographProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -50,20 +50,20 @@ export default function Seismograph({
       tick++;
       const { seismicEnergy: energy, activityLevel: act } = phaseRef.current;
 
-      // Generate next waveform displacement
+      // Generate next waveform displacement (earthquake P/S wave emulation)
       const midY = height / 2;
       const normalizedAct = Math.max(0.1, act / 100);
       
-      // Base harmonic tremor oscillation
-      const tremorBase = Math.sin(tick * 0.18) * (energy * 1.6);
-      const highFreqPWave = Math.sin(tick * 0.72) * (energy * 0.8) * (Math.random() > 0.4 ? 1 : -1);
-      const stochasticBurst = Math.random() < (0.05 + normalizedAct * 0.2)
-        ? (Math.random() - 0.5) * energy * 4.2
+      // High frequency primary compression P-wave + high amplitude shear S-wave
+      const pWave = Math.sin(tick * 0.45) * (energy * 1.2);
+      const sWave = Math.sin(tick * 0.15) * (energy * 2.8 * normalizedAct);
+      const stochasticBurst = Math.random() < (0.05 + normalizedAct * 0.25)
+        ? (Math.random() - 0.5) * energy * 4.5
         : 0;
 
-      const rawOffset = tremorBase + highFreqPWave + stochasticBurst;
+      const rawOffset = pWave + sWave + stochasticBurst;
       // Clamp within canvas height margins
-      const clampedOffset = Math.max(-height / 2 + 10, Math.min(height / 2 - 10, rawOffset));
+      const clampedOffset = Math.max(-height / 2 + 8, Math.min(height / 2 - 8, rawOffset));
       const nextY = midY + clampedOffset;
 
       pointsRef.current.push(nextY);
@@ -104,7 +104,7 @@ export default function Seismograph({
       // Waveform trace color based on activity
       let strokeColor = '#00f2ff'; // Cyan default
       let glowColor = 'rgba(0, 242, 255, 0.4)';
-      if (act > 85) {
+      if (act > 80) {
         strokeColor = '#ff2a5f'; // Crimson alert
         glowColor = 'rgba(255, 42, 95, 0.6)';
       } else if (act > 50) {
@@ -153,24 +153,24 @@ export default function Seismograph({
     };
   }, []);
 
-  const freq = (1.6 + (activityLevel / 100) * 2.8).toFixed(1);
+  const pga = ((activityLevel / 100) * 0.45).toFixed(3);
 
   return (
     <div className="seismograph-container">
       <div className="seismograph__header">
         <div className="seismograph__title">
           <span className="seismograph__pulse-indicator"></span>
-          <span>STATION AKR-PAS (PVMBG SEISMOGRAPH)</span>
+          <span>BMKG BROADBAND SEISMIC ARRAY (P/S WAVEFORM)</span>
         </div>
         <div className="seismograph__telemetry">
           <span className="seismograph__stat">
-            AMP: <strong>{seismicEnergy.toFixed(1)} mm/s</strong>
+            VEL: <strong>{seismicEnergy.toFixed(1)} mm/s</strong>
           </span>
           <span className="seismograph__stat">
-            DOM-FREQ: <strong>{freq} Hz</strong>
+            PGA: <strong>{pga} g</strong>
           </span>
           <span className={`seismograph__badge seismograph__badge--${phaseName.toLowerCase()}`}>
-            {activityLevel > 80 ? 'HIGH SURGE' : activityLevel > 45 ? 'SWARM' : 'QUIESCENT'}
+            {activityLevel > 80 ? 'SATURATED / CLIPPED' : activityLevel > 45 ? 'SURFACE WAVE RUPTURE' : 'AMBIENT NOISE'}
           </span>
         </div>
       </div>

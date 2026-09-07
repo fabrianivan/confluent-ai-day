@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/models"
 
 	ckafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
@@ -41,7 +41,7 @@ func NewConsumer(cfg *config.Config, callbacks ConsumerCallbacks) (*Consumer, er
 		"sasl.mechanisms":    "PLAIN",
 		"sasl.username":      cfg.KafkaAPIKey,
 		"sasl.password":      cfg.KafkaAPISecret,
-		"group.id":           "krakatau-sentinel-dashboard",
+		"group.id":           "gempa-sentinel-dashboard",
 		"auto.offset.reset":  "latest",
 		"enable.auto.commit": true,
 	})

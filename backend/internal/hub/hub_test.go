@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"krakatau-sentinel/internal/hub"
+	"gempa-sentinel/internal/hub"
 )
 
 func TestSSEHubBroadcast(t *testing.T) {

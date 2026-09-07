@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"krakatau-sentinel/internal/ai"
-	"krakatau-sentinel/internal/hub"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/ai"
+	"gempa-sentinel/internal/hub"
+	"gempa-sentinel/internal/models"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -286,7 +286,7 @@ func (s *Server) handleGovernance(c *gin.Context) {
 func (s *Server) handleHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":      "healthy",
-		"service":     "krakatau-sentinel",
+		"service":     "gempa-sentinel",
 		"sse_clients": s.hub.ClientCount(),
 		"timestamp":   time.Now(),
 	})

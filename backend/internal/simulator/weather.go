@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/models"
 )
 
 var windDirections = []string{"N", "NE", "E", "SE", "S", "SW", "W", "NW"}

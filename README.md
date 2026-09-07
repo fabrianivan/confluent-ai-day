@@ -1,10 +1,10 @@
-# 🌋 KRAKATAU SENTINEL
+# 🌍 GEMPA SENTINEL
 
-**Real-Time AI for Volcanic Intelligence & Emergency Response**
+**Real-Time AI for Earthquake Intelligence & Megathrust Early Warning**
 
-A streaming intelligence system that continuously monitors volcanic, seismic, ocean, weather, and satellite data through Confluent Cloud. Apache Flink SQL correlates events in real time to compute a Volcanic Activity Index, and Google Gemini AI provides explainable risk assessments and recommended response actions.
+A streaming intelligence system that continuously monitors seismic networks, InaTEWS tsunami buoys, geodetic InSAR satellite observations, and meteorological feeds across Indonesia's major subduction zones through Confluent Cloud. Apache Flink SQL correlates events in real time to compute a National Seismic Intensity Index (MMI) and detect tsunami wave anomalies, while Google Gemini AI provides explainable risk assessments and decision-support recommendations for disaster response authorities (BMKG, BNPB, BASARNAS).
 
-> ⚠️ **Important**: This system detects evolving volcanic risk and helps authorities make faster, evidence-based decisions. It is **NOT** an eruption prediction system.
+> ⚠️ **Important**: This system provides real-time seismic decision-support and rapid impact estimation. It is **NOT** an earthquake prediction system.
 
 ---
 
@@ -16,56 +16,63 @@ A streaming intelligence system that continuously monitors volcanic, seismic, oc
       ┌───────────────┼────────────────┐
       ↓               ↓                ↓
    Seismic         Satellite         Ocean
-   Volcano         Maritime          Weather
+ (BMKG/USGS)     (InSAR Slip)      (InaTEWS)
+   Stations      Infrastructure     Weather
       ↓               ↓                ↓
       └────────── CONFLUENT ───────────┘
                        │
-                  Kafka Topics (7 source)
+                  Kafka Topics (7 gempa.*)
                        │
                     FLINK SQL
                        │
               Real-time correlation
               Window aggregation
-              Trend detection
+              P/S Wave & Tsunami detection
                        │
-                 Output Topics (3)
+                  Output Topics (3)
                        │
               ┌────────┴─────────┐
               ↓                  ↓
-       Go Backend            Gemini AI
+        Go Backend            Gemini AI
               ↓                  ↓
          SSE Stream         Analysis
               ↓                  ↓
-         Dashboard       Recommendations
+         Dashboard       Decision-Support
 ```
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Go + Gin + confluent-kafka-go v2 |
-| Stream Processing | Confluent Flink SQL |
+| Backend | Go 1.23 + Gin + confluent-kafka-go v2 |
+| Stream Processing | Confluent Cloud Apache Flink SQL |
 | AI | Google Gemini 2.5 Flash |
-| Frontend | Next.js 14 + Leaflet.js |
+| Frontend | Next.js 16 + Leaflet.js (Tactical Cockpit UI) |
 | Messaging | Confluent Cloud (Apache Kafka) |
 
-## Setup
+## Autonomous Megathrust Scenarios
+
+The simulator cycles automatically through 4 high-risk Indonesian megathrust scenarios without requiring manual intervention:
+
+1. **Megathrust Selat Sunda (M8.2)** — Sunda Strait subduction segment, triggering 5–12m tsunami runup toward Anyer, Pandeglang, and Lampung.
+2. **Megathrust Selatan Jawa (M8.8)** — Java Trench subduction offshore Cilacap to Pacitan, generating 8–20m tsunami waves along the southern Java corridor.
+3. **Megathrust Mentawai-Siberut (M9.0)** — Sunda Megathrust offshore Padang and Mentawai Islands, generating 10–25m catastrophic tsunami waves.
+4. **Megathrust Sulawesi-Palu (M7.5)** — Palu-Koro strike-slip rupture replay with severe liquefaction and localized submarine landslide tsunami in Palu Bay.
+
+## Setup & Quickstart
 
 ### 1. Environment Variables
 
 ```bash
 cp .env.example .env
-# Edit .env with your credentials
+# Edit .env with your credentials (or DEMO_MODE=true for standalone mode)
 ```
 
 ### 2. Create Kafka Topics
 
 ```bash
-# Option A: Via Confluent CLI
 chmod +x scripts/setup-topics.sh
 ./scripts/setup-topics.sh
-
-# Option B: The Go backend auto-creates topics on startup
 ```
 
 ### 3. Start Backend
@@ -84,43 +91,25 @@ npm run dev
 
 ### 5. Deploy Flink SQL
 
-Open Confluent Cloud Flink workspace and run the SQL files in order:
-1. `flink/01_create_tables.sql` — Source table definitions
-2. `flink/02_activity_index.sql` — Volcanic Activity Index computation
+Open Confluent Cloud Flink workspace and run the SQL statements in order:
+1. `flink/01_create_tables.sql` — Source table definitions (`gempa.*`)
+2. `flink/02_activity_index.sql` — Seismic Intensity Index computation
 3. `flink/03_correlated_alerts.sql` — Multi-stream correlation
-4. `flink/04_tsunami_detection.sql` — Tsunami anomaly detection
-
-## Demo Flow (3 minutes)
-
-1. **0:00–0:30** — Show normal state, explain data sources flowing through Confluent
-2. **0:30–1:30** — Click **🔥 Simulate Volcanic Escalation**, watch Activity Index climb 23% → 82%
-3. **1:30–2:15** — Show AI analysis, expand **"Explain the Alert"**
-4. **2:15–2:45** — Click **🌊 Simulate Tsunami Scenario**, show impact assessment
-5. **2:45–3:00** — Show governance panel, wrap up with: *"The intelligence doesn't exist in any individual event. It emerges from the correlation of events over time."*
-
-## Kafka Topics
-
-| Topic | Type | Classification |
-|-------|------|---------------|
-| `volcano.seismic` | Source | Scientific |
-| `volcano.activity` | Source | Scientific |
-| `volcano.ocean` | Source | Scientific |
-| `volcano.weather` | Source | Scientific |
-| `volcano.satellite` | Source | Scientific |
-| `volcano.maritime` | Source | Operational |
-| `volcano.population` | Source | Sensitive (PII) |
-| `volcano.activity_index` | Flink Output | Derived |
-| `volcano.correlated_alerts` | Flink Output | Derived |
-| `volcano.tsunami_scenarios` | Flink Output | Derived |
-
-## Key Differentiators
-
-- **Flink-driven**: The intelligence emerges from correlating events over time, not from any single event
-- **AI as the second layer**: Flink computes the Activity Index first, then AI provides interpretation
-- **Explainable**: Every alert shows exactly which indicators triggered it and their significance
-- **Scientifically defensible**: Never claims to predict eruptions — provides decision-support assessment
-- **Real-time governance**: Demonstrates data classification, PII handling, and schema management
+4. `flink/04_tsunami_detection.sql` — Tsunami wave anomaly detection
 
 ---
 
-*Built for Confluent AI Day Hackathon*
+## Key Kafka Topics
+
+| Topic | Description | Source |
+|---|---|---|
+| `gempa.seismic` | Real-time earthquake events (USGS & BMKG) | Ingestion |
+| `gempa.stations` | BMKG broadband seismic station telemetry (P/S waves, PGA) | Network |
+| `gempa.tsunami` | InaTEWS DART buoy and tide gauge telemetry | Ocean Sensors |
+| `gempa.weather` | Real-time meteorology & barometric pressure | Open-Meteo |
+| `gempa.satellite` | InSAR surface displacement and coseismic slip | Geodetic Ops |
+| `gempa.infrastructure` | Hospital, bridge, port, and power grid status | Infrastructure |
+| `gempa.population` | Evacuation routes, shelters, and readiness | Civil Defense |
+| `gempa.intensity_index` | Computed real-time seismic intensity & MMI | Flink SQL |
+| `gempa.correlated_alerts` | Multi-stream correlated hazard warnings | Flink SQL |
+| `gempa.tsunami_scenarios` | Detected tsunami wave propagation alerts | Flink SQL |

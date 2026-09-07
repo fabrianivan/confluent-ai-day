@@ -1,11 +1,8 @@
 -- ============================================
--- KRAKATAU SENTINEL — Volcanic Activity Index
+-- GEMPA SENTINEL — Seismic Intensity Index
 -- ============================================
--- This is the "star query" — computes the real-time
--- Volcanic Activity Index using 1-minute tumbling windows
--- 
--- The index emerges from correlating multiple independent 
--- monitoring streams. No single event tells the full story.
+-- Star Query: Computes the real-time National Seismic Intensity Index
+-- using 1-minute tumbling windows over BMKG station telemetry & seismic events.
 
 -- Step 1: Create the output table
 CREATE TABLE activity_index (
@@ -20,99 +17,72 @@ CREATE TABLE activity_index (
     `max_magnitude` DOUBLE,
     `timestamp` TIMESTAMP(3)
 ) WITH (
-    'kafka.topic' = 'volcano.activity_index',
+    'kafka.topic' = 'gempa.intensity_index',
     'value.format' = 'json'
 );
 
--- Step 2: Continuous query — Seismic aggregation per window
--- This computes earthquake statistics in 1-minute tumbling windows
+-- Step 2: Continuous aggregation query
 INSERT INTO activity_index
 SELECT
-    -- Weighted activity index formula:
-    -- 30% seismic + 25% tremor + 20% thermal + 15% deformation + 10% gas
+    -- Weighted seismic intensity formula:
+    -- 40% magnitude/energy + 35% station PGA + 15% InSAR coseismic slip + 10% tsunami wave anomaly
     LEAST(100.0, 
-        (COALESCE(s.seismic_score, 0) * 0.30) +
-        (COALESCE(v.tremor_score, 0) * 0.25) +
-        (COALESCE(v.thermal_score, 0) * 0.20) +
-        (COALESCE(v.deformation_score, 0) * 0.15) +
-        (COALESCE(v.gas_score, 0) * 0.10)
+        (COALESCE(s.max_mag, 1.0) / 9.5 * 40.0) +
+        (COALESCE(st.avg_pga, 0.0) / 0.5 * 35.0) +
+        (COALESCE(sat.max_slip, 0.0) / 5.0 * 15.0) +
+        (COALESCE(o.max_wave, 0.0) / 10.0 * 10.0)
     ) AS overall_percentage,
     
-    COALESCE(s.seismic_score, 0) AS seismic_change,
-    COALESCE(v.tremor_score, 0) AS tremor_change,
+    COALESCE(s.seismic_energy_surge, 0.0) AS seismic_change,
+    COALESCE(st.avg_pga, 0.0) * 100.0 AS tremor_change,
     
     CASE 
-        WHEN COALESCE(v.avg_deformation, 0) > 1.0 THEN 'RAPIDLY INCREASING'
-        WHEN COALESCE(v.avg_deformation, 0) > 0.3 THEN 'INCREASING'
+        WHEN COALESCE(sat.max_slip, 0.0) > 2.0 THEN 'MAJOR FAULT RUPTURE'
+        WHEN COALESCE(sat.max_slip, 0.0) > 0.5 THEN 'COSEISMIC DISPLACEMENT'
         ELSE 'STABLE'
     END AS deformation_trend,
     
-    CASE 
-        WHEN COALESCE(v.avg_thermal, 0) > 60 THEN 'RAPIDLY INCREASING'
-        WHEN COALESCE(v.avg_thermal, 0) > 35 THEN 'INCREASING'
-        ELSE 'STABLE'
-    END AS thermal_trend,
+    'STABLE' AS thermal_trend,
     
     CASE 
-        WHEN LEAST(100.0, 
-            (COALESCE(s.seismic_score, 0) * 0.30) +
-            (COALESCE(v.tremor_score, 0) * 0.25) +
-            (COALESCE(v.thermal_score, 0) * 0.20) +
-            (COALESCE(v.deformation_score, 0) * 0.15) +
-            (COALESCE(v.gas_score, 0) * 0.10)
-        ) > 70 THEN 'RAPIDLY INCREASING'
-        WHEN LEAST(100.0, 
-            (COALESCE(s.seismic_score, 0) * 0.30) +
-            (COALESCE(v.tremor_score, 0) * 0.25) +
-            (COALESCE(v.thermal_score, 0) * 0.20) +
-            (COALESCE(v.deformation_score, 0) * 0.15) +
-            (COALESCE(v.gas_score, 0) * 0.10)
-        ) > 40 THEN 'INCREASING'
+        WHEN COALESCE(s.max_mag, 0.0) >= 8.0 THEN 'MEGATHRUST RUPTURE DETECTED'
+        WHEN COALESCE(s.max_mag, 0.0) >= 6.5 THEN 'MAJOR SHAKING'
+        WHEN COALESCE(s.max_mag, 0.0) >= 5.0 THEN 'MODERATE EVENT'
         ELSE 'STABLE'
     END AS trend_direction,
     
-    COALESCE(s.eq_count, 0) AS earthquake_count,
-    COALESCE(s.avg_mag, 0) AS avg_magnitude,
-    COALESCE(s.max_mag, 0) AS max_magnitude,
-    
+    COALESCE(s.quake_count, 0) AS earthquake_count,
+    COALESCE(s.avg_mag, 0.0) AS avg_magnitude,
+    COALESCE(s.max_mag, 0.0) AS max_magnitude,
     s.window_end AS `timestamp`
-
 FROM (
-    -- Seismic sub-query: 1-minute tumbling window
-    SELECT
-        window_start,
-        window_end,
-        COUNT(*) AS eq_count,
+    SELECT 
+        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        COUNT(*) AS quake_count,
         AVG(magnitude) AS avg_mag,
         MAX(magnitude) AS max_mag,
-        -- Score: based on count and magnitude
-        -- Baseline ~2 events/min with M<1.5
-        LEAST(100.0, (COUNT(*) * 10.0) + (AVG(magnitude) * 20.0)) AS seismic_score
-    FROM TABLE(
-        TUMBLE(TABLE seismic_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
-    )
-    GROUP BY window_start, window_end
+        AVG(pga) * 200.0 AS seismic_energy_surge
+    FROM seismic_events
+    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
 ) s
-
 LEFT JOIN (
-    -- Volcanic sub-query: 1-minute tumbling window
-    SELECT
-        window_start,
-        window_end,
-        AVG(tremor_intensity) AS avg_tremor,
-        AVG(thermal_activity) AS avg_thermal,
-        AVG(deformation) AS avg_deformation,
-        AVG(gas_measurement) AS avg_gas,
-        -- Tremor score
-        LEAST(100.0, AVG(tremor_intensity) * 12.0) AS tremor_score,
-        -- Thermal score
-        LEAST(100.0, AVG(thermal_activity) * 1.2) AS thermal_score,
-        -- Deformation score
-        LEAST(100.0, AVG(deformation) * 50.0) AS deformation_score,
-        -- Gas score
-        LEAST(100.0, AVG(gas_measurement) * 0.12) AS gas_score
-    FROM TABLE(
-        TUMBLE(TABLE volcanic_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
-    )
-    GROUP BY window_start, window_end
-) v ON s.window_start = v.window_start AND s.window_end = v.window_end;
+    SELECT 
+        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        AVG(pga_recorded) AS avg_pga
+    FROM station_events
+    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+) st ON s.window_end = st.window_end
+LEFT JOIN (
+    SELECT 
+        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        MAX(coseismic_slip) AS max_slip
+    FROM satellite_events
+    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+) sat ON s.window_end = sat.window_end
+LEFT JOIN (
+    SELECT 
+        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        MAX(wave_height) AS max_wave
+    FROM ocean_events
+    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+) o ON s.window_end = o.window_end;

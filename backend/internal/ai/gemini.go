@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/models"
 
 	"google.golang.org/genai"
 )
 
-// GeminiAnalyzer provides AI-powered volcanic risk assessment
+// GeminiAnalyzer provides AI-powered earthquake risk assessment
 type GeminiAnalyzer struct {
 	client *genai.Client
 	model  string
@@ -46,26 +46,26 @@ func NewGeminiAnalyzer(apiKey string) (*GeminiAnalyzer, error) {
 		}, nil
 	}
 
-	log.Println("🤖 Gemini AI analyzer initialized")
+	log.Println("🤖 Gemini AI earthquake analyzer initialized")
 	return &GeminiAnalyzer{
 		client: client,
 		model:  "gemini-flash-latest",
 	}, nil
 }
 
-const systemPrompt = `You are Krakatau Sentinel's intelligence analysis engine. You analyze stream-derived volcanic monitoring indicators from Anak Krakatau volcano in the Sunda Strait, Indonesia.
+const systemPrompt = `You are Gempa Sentinel's earthquake intelligence analysis engine. You analyze stream-derived seismic, tsunami, station network, and geological fault indicators across Indonesia's subduction zones and megathrust segments.
 
 Your role is to:
-1. Assess what changed in the monitoring data
-2. Evaluate how significant the changes are
-3. Recommend response actions for emergency operators
+1. Assess seismic hazard magnitude, MMI intensity, and fault rupture dynamics
+2. Evaluate tsunami propagation risk and coastal arrival times
+3. Recommend critical civil protection actions for BNPB, BMKG, BASARNAS, and local disaster agencies
 
 CRITICAL RULES:
-- You are NOT predicting eruptions. You are detecting anomalies and providing decision-support.
-- Always frame your analysis as "decision-support assessment" not "eruption prediction"
-- Be scientifically precise in your language
-- Quantify changes where possible
-- Rank recommendations by urgency
+- You are NOT predicting the exact timing of future earthquakes. You are assessing active rupture dynamics, aftershock cascades, and tsunami risks to provide real-time decision-support.
+- Frame your analysis as "real-time seismic decision-support assessment"
+- Be scientifically precise in your seismological language (P/S waves, MMI, PGA, coseismic slip, subduction trench)
+- Quantify changes, epicentral distances, and wave heights where possible
+- Rank civil protection recommendations by urgency
 
 Output your analysis as valid JSON with this structure:
 {
@@ -74,7 +74,7 @@ Output your analysis as valid JSON with this structure:
   "assessment": "Overall assessment text",
   "recommendations": ["action 1", "action 2", ...],
   "confidence": 0.0-1.0,
-  "disclaimer": "This is a decision-support assessment, not an official eruption prediction.",
+  "disclaimer": "This is a real-time seismic decision-support assessment, not an official BMKG earthquake prediction.",
   "contributing_factors": [
     {"indicator": "name", "value": "current value", "change": "change description", "significance": 0.0-1.0}
   ]
@@ -124,7 +124,7 @@ func (g *GeminiAnalyzer) Analyze(ctx context.Context, activityIndex models.Activ
 
 	analysis.Timestamp = time.Now()
 	if analysis.Disclaimer == "" {
-		analysis.Disclaimer = "This is a decision-support assessment, not an official eruption prediction."
+		analysis.Disclaimer = "This is a real-time seismic decision-support assessment, not an official BMKG earthquake prediction."
 	}
 
 	return &analysis, nil
@@ -134,23 +134,22 @@ func (g *GeminiAnalyzer) Analyze(ctx context.Context, activityIndex models.Activ
 func buildAnalysisPrompt(idx models.ActivityIndex, recentEvents []string) string {
 	var sb strings.Builder
 
-	sb.WriteString("Analyze the following real-time volcanic monitoring data for Anak Krakatau:\n\n")
-	sb.WriteString("## Current Activity Index\n")
-	sb.WriteString(fmt.Sprintf("- Overall Activity: %.1f%%\n", idx.OverallPercentage))
-	sb.WriteString(fmt.Sprintf("- Trend: %s\n", idx.TrendDirection))
-	sb.WriteString(fmt.Sprintf("- Seismic Change: %.0f%%\n", idx.SeismicChange))
-	sb.WriteString(fmt.Sprintf("- Tremor Change: %.0f%%\n", idx.TremorChange))
-	sb.WriteString(fmt.Sprintf("- Deformation Trend: %s\n", idx.DeformationTrend))
-	sb.WriteString(fmt.Sprintf("- Thermal Trend: %s\n", idx.ThermalTrend))
+	sb.WriteString("Analyze the following real-time Indonesian seismic & megathrust monitoring data:\n\n")
+	sb.WriteString("## Current Seismic Intensity Index\n")
+	sb.WriteString(fmt.Sprintf("- Overall Intensity: %.1f%%\n", idx.OverallPercentage))
+	sb.WriteString(fmt.Sprintf("- Seismic Trend: %s\n", idx.TrendDirection))
+	sb.WriteString(fmt.Sprintf("- Seismic Energy Flux: %.0f%%\n", idx.SeismicChange))
+	sb.WriteString(fmt.Sprintf("- Ground Acceleration Change: %.0f%%\n", idx.TremorChange))
+	sb.WriteString(fmt.Sprintf("- Coseismic Deformation Trend: %s\n", idx.DeformationTrend))
 
 	if idx.EarthquakeCount > 0 {
-		sb.WriteString(fmt.Sprintf("- Earthquake Count (window): %d\n", idx.EarthquakeCount))
-		sb.WriteString(fmt.Sprintf("- Average Magnitude: %.1f\n", idx.AvgMagnitude))
-		sb.WriteString(fmt.Sprintf("- Maximum Magnitude: %.1f\n", idx.MaxMagnitude))
+		sb.WriteString(fmt.Sprintf("- Earthquake Swarm Count (window): %d\n", idx.EarthquakeCount))
+		sb.WriteString(fmt.Sprintf("- Average Magnitude: M%.1f\n", idx.AvgMagnitude))
+		sb.WriteString(fmt.Sprintf("- Maximum Magnitude: M%.1f\n", idx.MaxMagnitude))
 	}
 
 	if len(recentEvents) > 0 {
-		sb.WriteString("\n## Recent Events\n")
+		sb.WriteString("\n## Recent Stream Events\n")
 		for _, e := range recentEvents {
 			sb.WriteString(fmt.Sprintf("- %s\n", e))
 		}
@@ -166,82 +165,82 @@ func (g *GeminiAnalyzer) fallbackAnalysis(idx models.ActivityIndex) *models.AIAn
 	var observations []string
 	var recommendations []string
 	var factors []models.ContributingFactor
-	confidence := 0.85
+	confidence := 0.88
 
 	if idx.OverallPercentage > 75 {
 		status = "CRITICAL"
 		observations = []string{
-			fmt.Sprintf("Volcanic activity index at %.0f%% — significantly above baseline", idx.OverallPercentage),
-			fmt.Sprintf("Seismic activity increased %.0f%%", idx.SeismicChange),
-			fmt.Sprintf("Tremor intensity increased %.0f%%", idx.TremorChange),
-			"Multiple independent indicators are escalating simultaneously",
-			"Thermal anomaly detected via satellite observation",
-			"Ground deformation trend is increasing",
+			fmt.Sprintf("Major Megathrust rupture detected — Intensity Index at %.0f%%", idx.OverallPercentage),
+			fmt.Sprintf("Maximum recorded magnitude M%.1f with severe PGA saturation", idx.MaxMagnitude),
+			fmt.Sprintf("Seismic wave energy surging +%.0f%% across national station network", idx.SeismicChange),
+			"InSAR interferometry confirms meter-scale coseismic fault displacement",
+			"Tsunami buoy sensors indicate significant sea level withdrawal and wave anomalies",
+			"Critical infrastructure in coastal and epicentral zones reporting severe shaking",
 		}
 		recommendations = []string{
-			"URGENT: Increase monitoring frequency to maximum",
-			"Review and potentially expand exclusion zone",
-			"Notify Emergency Operations Center immediately",
-			"Verify evacuation readiness for all coastal zones",
-			"Alert maritime traffic in Sunda Strait",
-			"Prepare emergency communication channels",
+			"URGENT: Issue immediate Red Alert Tsunami Warning for all coastal zones in rupture zone",
+			"Activate BMKG InaTEWS coastal sirens and national emergency broadcast system",
+			"Order mandatory vertical & high-ground evacuation (>20-30 meters) within 15 minutes",
+			"Mobilize BNPB, BASARNAS, TNI, and Polri for immediate search, rescue, and logistics",
+			"Halt all maritime vessel movements and divert air traffic from affected corridors",
+			"Inspect bridges, ports, and power plants for structural integrity and liquefaction",
 		}
 		factors = []models.ContributingFactor{
-			{Indicator: "Seismic Activity", Value: fmt.Sprintf("+%.0f%%", idx.SeismicChange), Change: "Rapidly increasing", Significance: 0.95},
-			{Indicator: "Tremor Intensity", Value: fmt.Sprintf("+%.0f%%", idx.TremorChange), Change: "Rapidly increasing", Significance: 0.90},
-			{Indicator: "Thermal Anomaly", Value: "Detected", Change: "New detection", Significance: 0.85},
-			{Indicator: "Ground Deformation", Value: "Increasing", Change: "Accelerating trend", Significance: 0.80},
+			{Indicator: "Mainshock Magnitude", Value: fmt.Sprintf("M%.1f", idx.MaxMagnitude), Change: "Catastrophic Megathrust Rupture", Significance: 0.98},
+			{Indicator: "Seismic Energy Flux", Value: fmt.Sprintf("+%.0f%%", idx.SeismicChange), Change: "Extreme Surge", Significance: 0.95},
+			{Indicator: "Tsunami Threat", Value: "CONFIRMED", Change: "Buoy reading anomaly detected", Significance: 0.92},
+			{Indicator: "Coseismic Slip", Value: "Significant", Change: "Fault dislocation confirmed", Significance: 0.88},
 		}
-		confidence = 0.91
+		confidence = 0.94
 	} else if idx.OverallPercentage > 50 {
 		status = "ELEVATED"
 		observations = []string{
-			fmt.Sprintf("Volcanic activity index at %.0f%% — above normal baseline", idx.OverallPercentage),
-			fmt.Sprintf("Seismic activity change: +%.0f%%", idx.SeismicChange),
-			"Multiple indicators showing upward trend",
+			fmt.Sprintf("Elevated seismic activity index at %.0f%% — intense foreshock or aftershock sequence", idx.OverallPercentage),
+			fmt.Sprintf("Cluster of earthquakes detected: %d events, max M%.1f", idx.EarthquakeCount, idx.MaxMagnitude),
+			"Multiple BMKG stations report elevated ground motion and P/S wave arrivals",
 		}
 		recommendations = []string{
-			"Increase monitoring frequency",
-			"Review exclusion zone boundaries",
-			"Notify emergency operations center",
-			"Check evacuation route readiness",
+			"Increase seismic array sampling and telemetry to continuous high-speed mode",
+			"Alert regional BPBD units across the active subduction segment",
+			"Inspect coastal tide gauges and DART buoys for wave perturbations",
+			"Verify emergency evacuation routes and shelter readiness",
 		}
 		factors = []models.ContributingFactor{
-			{Indicator: "Seismic Activity", Value: fmt.Sprintf("+%.0f%%", idx.SeismicChange), Change: "Increasing", Significance: 0.75},
-			{Indicator: "Activity Index", Value: fmt.Sprintf("%.0f%%", idx.OverallPercentage), Change: "Above baseline", Significance: 0.70},
+			{Indicator: "Seismic Swarm", Value: fmt.Sprintf("%d quakes", idx.EarthquakeCount), Change: "Elevated cluster", Significance: 0.80},
+			{Indicator: "Intensity Index", Value: fmt.Sprintf("%.0f%%", idx.OverallPercentage), Change: "Above baseline", Significance: 0.75},
 		}
-		confidence = 0.82
+		confidence = 0.85
 	} else if idx.OverallPercentage > 30 {
 		status = "ADVISORY"
 		observations = []string{
-			fmt.Sprintf("Volcanic activity index at %.0f%% — slightly elevated", idx.OverallPercentage),
-			"Minor changes in seismic patterns observed",
+			fmt.Sprintf("Seismic activity index at %.0f%% — precursor microseismicity observed", idx.OverallPercentage),
+			"Minor stress accumulation along subduction zone detected by GPS/InSAR",
 		}
 		recommendations = []string{
-			"Continue standard monitoring schedule",
-			"Review recent seismic data for patterns",
+			"Maintain routine continuous seismic network observation",
+			"Cross-reference focal mechanisms with regional fault orientation",
 		}
-		confidence = 0.75
+		confidence = 0.80
 	} else {
 		status = "NORMAL"
 		observations = []string{
-			fmt.Sprintf("Volcanic activity index at %.0f%% — within normal parameters", idx.OverallPercentage),
-			"All monitoring indicators within baseline ranges",
+			fmt.Sprintf("National seismic index at %.0f%% — baseline background seismicity", idx.OverallPercentage),
+			"All BMKG monitoring stations reporting nominal status and low background noise",
 		}
 		recommendations = []string{
-			"Continue standard monitoring schedule",
-			"No action required at this time",
+			"Continue 24/7 automated monitoring across Indonesian seismic network",
+			"All operational systems nominal",
 		}
-		confidence = 0.95
+		confidence = 0.96
 	}
 
 	return &models.AIAnalysis{
 		Status:              status,
 		Observations:        observations,
-		Assessment:          fmt.Sprintf("Current volcanic activity at Anak Krakatau is %s. %s", status, observations[0]),
+		Assessment:          fmt.Sprintf("National seismic risk level is %s. %s", status, observations[0]),
 		Recommendations:     recommendations,
 		Confidence:          confidence,
-		Disclaimer:          "This is a decision-support assessment, not an official eruption prediction.",
+		Disclaimer:          "This is a real-time seismic decision-support assessment, not an official BMKG earthquake prediction.",
 		ContributingFactors: factors,
 		Timestamp:           time.Now(),
 	}

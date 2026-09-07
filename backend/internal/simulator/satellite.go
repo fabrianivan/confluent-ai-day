@@ -6,13 +6,13 @@ import (
 	"math/rand"
 	"time"
 
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/models"
 )
 
-// generateSatelliteEvents produces satellite observation data
+// generateSatelliteEvents produces InSAR and SAR satellite observation data
 func (s *Simulator) generateSatelliteEvents(ctx context.Context) {
-	satellites := []string{"GOES-18", "Himawari-9", "Sentinel-2B", "MODIS-Terra"}
+	satellites := []string{"Sentinel-1A (InSAR)", "ALOS-2 PALSAR", "TerraSAR-X", "Sentinel-1B"}
 
 	for {
 		select {
@@ -20,34 +20,30 @@ func (s *Simulator) generateSatelliteEvents(ctx context.Context) {
 			return
 		default:
 			s.mu.RLock()
-			mode := s.mode
-			progress := s.escalationProgress
+			phase := s.currentPhase
 			s.mu.RUnlock()
 
 			sat := satellites[rand.Intn(len(satellites))]
-			var event models.SatelliteEvent
+			var displacement, deformation, slip float64
 
-			switch mode {
-			case ModeVolcanicEscalation:
-				event = models.SatelliteEvent{
-					Type:           "SATELLITE",
-					ThermalAnomaly: progress*5.0 + rand.Float64()*2.0,
-					Deformation:    progress * 3.0,
-					AshPlume:       ashPlumeStatus(progress),
-					SatelliteID:    sat,
-					Timestamp:      time.Now(),
-				}
-				time.Sleep(jitter(5*time.Second, 0.3))
-			default:
-				event = models.SatelliteEvent{
-					Type:           "SATELLITE",
-					ThermalAnomaly: rand.Float64() * 0.5,
-					Deformation:    rand.Float64() * 0.1,
-					AshPlume:       "None detected",
-					SatelliteID:    sat,
-					Timestamp:      time.Now(),
-				}
-				time.Sleep(jitter(20*time.Second, 0.5))
+			if phase.PhaseNumber == 2 || phase.PhaseNumber == 3 {
+				// Coseismic deformation during/after mainshock
+				displacement = (phase.ActivityLevel / 100.0) * (50.0 + rand.Float64()*120.0) // cm
+				deformation = displacement * 0.1
+				slip = (phase.ActivityLevel / 100.0) * (2.0 + rand.Float64()*6.0)            // meters
+			} else {
+				displacement = rand.Float64() * 0.8
+				deformation = rand.Float64() * 0.2
+				slip = 0.0
+			}
+
+			event := models.SatelliteEvent{
+				Type:               "SATELLITE",
+				GroundDisplacement: displacement,
+				Deformation:        deformation,
+				CoseismicSlip:      slip,
+				SatelliteID:        sat,
+				Timestamp:          time.Now(),
 			}
 
 			_ = s.producer.Produce(config.TopicNames.Satellite, sat, event)
@@ -58,59 +54,30 @@ func (s *Simulator) generateSatelliteEvents(ctx context.Context) {
 				"timestamp":   event.Timestamp,
 				"data":        event,
 			})
+
+			time.Sleep(jitter(15*time.Second, 0.4))
 		}
 	}
 }
 
-func (s *Simulator) produceEscalatedSatellite(activity float64) {
-	progress := activity / 100.0
-	event := models.SatelliteEvent{
-		Type:           "SATELLITE",
-		ThermalAnomaly: progress*5.0 + rand.Float64()*1.5,
-		Deformation:    progress * 3.0,
-		AshPlume:       ashPlumeStatus(progress),
-		SatelliteID:    "Sentinel-2B",
-		Timestamp:      time.Now(),
-	}
-
-	_ = s.producer.Produce(config.TopicNames.Satellite, "Sentinel-2B", event)
-	s.hub.BroadcastAll("event", map[string]interface{}{
-		"type":        "SATELLITE",
-		"description": fmt.Sprintf("Thermal anomaly +%.1f°C detected via %s", event.ThermalAnomaly, event.SatelliteID),
-		"severity":    "HIGH",
-		"timestamp":   event.Timestamp,
-		"data":        event,
-	})
-}
-
-func ashPlumeStatus(progress float64) string {
-	switch {
-	case progress > 0.8:
-		return "Significant ash plume observed"
-	case progress > 0.6:
-		return "Minor ash emission detected"
-	case progress > 0.4:
-		return "Possible steam/gas plume"
-	default:
-		return "None detected"
-	}
-}
-
 func formatSatelliteDescription(e models.SatelliteEvent) string {
-	if e.ThermalAnomaly > 2.0 {
-		return fmt.Sprintf("Thermal anomaly +%.1f°C — %s", e.ThermalAnomaly, e.SatelliteID)
+	if e.CoseismicSlip > 1.0 {
+		return fmt.Sprintf("InSAR Alert: Coseismic slip %.1fm, displacement %.1fcm via %s", e.CoseismicSlip, e.GroundDisplacement, e.SatelliteID)
 	}
-	if e.Deformation > 1.0 {
-		return fmt.Sprintf("Deformation %.1fcm detected — %s", e.Deformation, e.SatelliteID)
+	if e.GroundDisplacement > 5.0 {
+		return fmt.Sprintf("Ground displacement %.1fcm detected via %s", e.GroundDisplacement, e.SatelliteID)
 	}
-	return fmt.Sprintf("Normal scan — %s: thermal %.1f°C", e.SatelliteID, e.ThermalAnomaly)
+	return fmt.Sprintf("Interferometry scan normal — %s: displacement %.1fcm", e.SatelliteID, e.GroundDisplacement)
 }
 
 func satelliteSeverity(e models.SatelliteEvent) string {
-	if e.ThermalAnomaly > 3.0 || e.Deformation > 2.0 {
+	if e.CoseismicSlip > 3.0 || e.GroundDisplacement > 50.0 {
+		return "CRITICAL"
+	}
+	if e.CoseismicSlip > 0.5 || e.GroundDisplacement > 10.0 {
 		return "HIGH"
 	}
-	if e.ThermalAnomaly > 1.0 || e.Deformation > 0.5 {
+	if e.GroundDisplacement > 2.0 {
 		return "MEDIUM"
 	}
 	return "LOW"

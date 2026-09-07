@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"krakatau-sentinel/internal/config"
+	"gempa-sentinel/internal/config"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )

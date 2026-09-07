@@ -36,16 +36,16 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
     <header className="status-bar">
       <div className="status-bar__brand">
         <div className="status-bar__icon-wrapper">
-          <span className="status-bar__icon">🌋</span>
+          <span className="status-bar__icon">🌍</span>
           <span className="status-bar__icon-beacon"></span>
         </div>
         <div>
           <div className="status-bar__title">
-            <span>KRAKATAU SENTINEL</span>
-            <span className="status-bar__version">MISSION CONTROL v2.5</span>
+            <span>GEMPA SENTINEL</span>
+            <span className="status-bar__version">MISSION CONTROL v3.0</span>
           </div>
           <div className="status-bar__subtitle">
-            Autonomous Multi-Stream Volcanic Intelligence & Disaster Warning System
+            Indonesian Subduction Zones • Megathrust Early Warning & Real-Time Seismic Intelligence
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
         </div>
         <div className="status-bar__sensors-badge">
           <span className="status-bar__sensors-dot"></span>
-          <span>48 MULTI-DOMAIN SENSORS ONLINE</span>
+          <span>BMKG & InaTEWS SEISMIC SENSORS ONLINE</span>
         </div>
       </div>
 
@@ -68,7 +68,7 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
       <div className="status-bar__right">
         <div className="status-bar__cluster-badge">
           <span className="status-bar__cluster-icon">⚡</span>
-          <span>CONFLUENT CLOUD (AWS us-east-2)</span>
+          <span>CONFLUENT CLOUD + APACHE FLINK</span>
         </div>
 
         <div
@@ -79,8 +79,8 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
           <span>{isAlert ? '🚨' : '✓'}</span>
           <span>
             {isAlert
-              ? `${alertCount || 1} CRITICAL ALERT${alertCount > 1 ? 'S' : ''}`
-              : 'ALL CORRIDORS NOMINAL'}
+              ? `${alertCount || 1} CRITICAL SEISMIC ALERT${alertCount > 1 ? 'S' : ''}`
+              : 'ALL SUBDUCTION ZONES NOMINAL'}
           </span>
         </div>
 
@@ -90,7 +90,7 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
               !connected ? 'status-bar__live-dot--disconnected' : ''
             }`}
           />
-          <span>{connected ? 'LIVE TELEMETRY' : 'CONNECTING'}</span>
+          <span>{connected ? 'LIVE SEISMIC FEED' : 'CONNECTING'}</span>
         </div>
       </div>
     </header>

@@ -35,7 +35,7 @@ const MapComponent = dynamic(() => import('@/components/Map'), {
         fontSize: '13px',
       }}
     >
-      🗺️ Initializing Satellite & Tactical Radar Mapping...
+      🗺️ Initializing National Tectonic & Subduction Zone Mapping...
     </div>
   ),
 });
@@ -45,38 +45,38 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const INITIAL_EVENTS: LiveEvent[] = [
   {
     id: 'init-1',
-    type: 'VOLCANIC',
-    description: '🛰️ [AUTONOMOUS] Ambient baseline: Micro-seismic tremor 0.4–1.2 mm/s',
+    type: 'SEISMIC',
+    description: 'BMKG National Array: Continuous real-time broadband seismic waveform ingestion',
     severity: 'LOW',
     timestamp: new Date(Date.now() - 3000).toISOString(),
   },
   {
     id: 'init-2',
-    type: 'WEATHER',
-    description: 'Open-Meteo Ingest: Wind 14 km/h NW — Barometer 1012.4 hPa — Temp 29.2°C',
+    type: 'STATION',
+    description: 'Station LEM (Lembang, West Java): Signal quality 99.4%, PGA 0.002g [ONLINE]',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 9000).toISOString(),
+    timestamp: new Date(Date.now() - 7000).toISOString(),
   },
   {
     id: 'init-3',
-    type: 'SEISMIC',
-    description: 'USGS Stream: Recent shallow regional events monitored within 500km buffer',
+    type: 'OCEAN',
+    description: 'InaTEWS Buoy BUOY-INA-01 (Selat Sunda): Nominal sea surface displacement (0.02m)',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 17000).toISOString(),
+    timestamp: new Date(Date.now() - 14000).toISOString(),
   },
   {
     id: 'init-4',
-    type: 'OCEAN',
-    description: 'Marina Jukung & Ciwandan tide gauges reporting nominal sea-surface displacement',
+    type: 'SATELLITE',
+    description: 'Sentinel-1A InSAR Interferometry: Subduction trench baseline deformation nominal',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 25000).toISOString(),
+    timestamp: new Date(Date.now() - 22000).toISOString(),
   },
   {
     id: 'init-5',
-    type: 'MARITIME',
-    description: 'KM Sunda Express (11.8 kts) crossing active Sunda Strait navigation lane',
+    type: 'INFRASTRUCTURE',
+    description: 'RSUD & Pelabuhan Strategic Facilities: Operational status verified 100%',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 36000).toISOString(),
+    timestamp: new Date(Date.now() - 31000).toISOString(),
   },
 ];
 
@@ -94,78 +94,58 @@ function parseLiveEvent(data: Record<string, unknown>, id: string): LiveEvent {
     switch (type) {
       case 'SEISMIC': {
         const mag = typeof data.magnitude === 'number' ? data.magnitude.toFixed(1) : '?';
-        const depth = typeof data.depth === 'number' ? data.depth.toFixed(1) : '?';
-        const freq = typeof data.frequency === 'number' ? data.frequency.toFixed(1) : '?';
-        description = `Earthquake M${mag} — Depth ${depth}km (Tremor: ${freq} Hz)`;
+        const depth = typeof data.depth === 'number' ? data.depth.toFixed(0) : '?';
+        const fault = String(data.fault_zone || 'Subduction Zone');
+        description = `Earthquake M${mag} — Depth ${depth}km (${fault})`;
         severity =
-          typeof data.magnitude === 'number' && data.magnitude >= 3.0
+          typeof data.magnitude === 'number' && data.magnitude >= 7.5
             ? 'CRITICAL'
-            : typeof data.magnitude === 'number' && data.magnitude >= 2.0
+            : typeof data.magnitude === 'number' && data.magnitude >= 6.0
             ? 'HIGH'
-            : typeof data.magnitude === 'number' && data.magnitude >= 1.2
+            : typeof data.magnitude === 'number' && data.magnitude >= 4.5
             ? 'MEDIUM'
             : 'LOW';
         break;
       }
-      case 'VOLCANO':
-      case 'VOLCANIC': {
-        const level = typeof data.activity_level === 'number' ? data.activity_level.toFixed(0) : '?';
-        const tremor = typeof data.tremor_intensity === 'number' ? data.tremor_intensity.toFixed(0) : '?';
-        const def =
-          typeof data.deformation === 'number'
-            ? `${data.deformation >= 0 ? '+' : ''}${data.deformation.toFixed(2)}cm`
-            : '';
-        const obs = data.eruption_observation ? ` — ${data.eruption_observation}` : '';
-        description = `Activity ${level}% — Tremor ${tremor}% — Def: ${def}${obs}`;
-        severity =
-          typeof data.activity_level === 'number' && data.activity_level >= 70
-            ? 'CRITICAL'
-            : typeof data.activity_level === 'number' && data.activity_level >= 45
-            ? 'HIGH'
-            : typeof data.activity_level === 'number' && data.activity_level >= 25
-            ? 'MEDIUM'
-            : 'LOW';
+      case 'STATION': {
+        const st = String(data.station_id || 'Station');
+        const pga = typeof data.pga_recorded === 'number' ? data.pga_recorded.toFixed(4) : '?';
+        const status = String(data.status || 'ONLINE');
+        description = `Station ${st}: PGA ${pga}g [${status}]`;
+        severity = status === 'CLIPPED' ? 'CRITICAL' : 'LOW';
         break;
       }
       case 'OCEAN': {
-        const sensor = String(data.sensor_id || 'Ocean-Sensor');
-        const sl = typeof data.sea_level === 'number' ? `${data.sea_level >= 0 ? '+' : ''}${data.sea_level.toFixed(2)}m` : '?';
-        const wh = typeof data.wave_height === 'number' ? `${data.wave_height.toFixed(2)}m` : '?';
-        description = `${sensor}: Sea level ${sl}, Wave: ${wh}`;
+        const sensor = String(data.sensor_id || 'Tide-Gauge');
+        const wh = typeof data.wave_height === 'number' ? data.wave_height.toFixed(2) : '?';
+        description = `${sensor}: Wave surge ${wh}m`;
         severity =
-          typeof data.sea_level === 'number' && Math.abs(data.sea_level) > 1.5
+          typeof data.wave_height === 'number' && data.wave_height > 3.0
             ? 'CRITICAL'
-            : typeof data.sea_level === 'number' && Math.abs(data.sea_level) > 0.8
+            : typeof data.wave_height === 'number' && data.wave_height > 1.0
             ? 'HIGH'
             : 'LOW';
-        break;
-      }
-      case 'WEATHER': {
-        const ws = typeof data.wind_speed === 'number' ? `${data.wind_speed.toFixed(0)} km/h` : '?';
-        const wd = String(data.wind_direction || 'N');
-        const p = typeof data.atmospheric_pressure === 'number' ? `${data.atmospheric_pressure.toFixed(0)} hPa` : '?';
-        const temp = typeof data.temperature === 'number' ? `${data.temperature.toFixed(0)}°C` : '?';
-        description = `Wind: ${ws} ${wd} — Barometer: ${p} — Temp: ${temp}`;
-        severity = 'LOW';
         break;
       }
       case 'SATELLITE': {
-        const sat = String(data.satellite_id || 'Sentinel-2');
-        const thermal = typeof data.thermal_anomaly === 'number' ? `${data.thermal_anomaly >= 0 ? '+' : ''}${data.thermal_anomaly.toFixed(1)}°C` : '?';
-        const plume = data.ash_plume ? ` — Plume: ${data.ash_plume}` : '';
-        description = `${sat}: Thermal anomaly ${thermal}${plume}`;
-        severity =
-          typeof data.thermal_anomaly === 'number' && data.thermal_anomaly > 2.0
-            ? 'HIGH'
-            : 'LOW';
+        const sat = String(data.satellite_id || 'InSAR');
+        const slip = typeof data.coseismic_slip === 'number' ? data.coseismic_slip.toFixed(2) : '0';
+        description = `${sat}: Fault slip ${slip}m detected`;
+        severity = typeof data.coseismic_slip === 'number' && data.coseismic_slip > 2.0 ? 'CRITICAL' : 'LOW';
         break;
       }
-      case 'MARITIME': {
-        const ship = String(data.ship_name || 'Vessel');
-        const spd = typeof data.speed === 'number' ? `${data.speed.toFixed(1)} kts` : '?';
-        const rz = data.restricted_zone ? ' ⚠️ INSIDE EXCLUSION ZONE' : '';
-        description = `${ship} (${spd})${rz}`;
-        severity = data.restricted_zone ? 'CRITICAL' : 'LOW';
+      case 'INFRASTRUCTURE': {
+        const fac = String(data.facility_name || 'Facility');
+        const dmg = String(data.damage_level || 'NONE');
+        description = `${fac}: Damage level ${dmg}`;
+        severity = dmg === 'COLLAPSED' || dmg === 'SEVERE' ? 'CRITICAL' : dmg === 'MODERATE' ? 'HIGH' : 'LOW';
+        break;
+      }
+      case 'WEATHER': {
+        const ws = typeof data.wind_speed === 'number' ? data.wind_speed.toFixed(0) : '?';
+        const wd = String(data.wind_direction || 'N');
+        description = `Weather: Wind ${ws} km/h ${wd}`;
+        severity = 'LOW';
         break;
       }
       default:
@@ -192,13 +172,18 @@ export default function Home() {
   const [events, setEvents] = useState<LiveEvent[]>(INITIAL_EVENTS);
   const [phase, setPhase] = useState<LifecyclePhase | null>({
     phase_number: 1,
-    phase_name: 'QUIESCENT_BASELINE',
-    phase_title: 'Phase 1: Quiescent Surveillance & Ambient Ingestion',
-    activity_level: 21.4,
-    duration_sec: 35,
-    elapsed_sec: 4,
-    seismic_energy: 1.2,
+    phase_name: 'SEISMIC_BASELINE',
+    phase_title: 'Fase 1: Baseline Monitoring & USGS Feed Ingestion',
+    activity_level: 12.0,
+    duration_sec: 30,
+    elapsed_sec: 1,
+    seismic_energy: 0.8,
     status: 'NORMAL',
+    scenario_name: 'MEGATHRUST SELAT SUNDA (M8.2)',
+    magnitude: 8.2,
+    depth: 25.0,
+    fault_zone: 'Sunda Strait Subduction',
+    mmi: 1,
     timestamp: new Date().toISOString(),
   });
   const [connected, setConnected] = useState(false);
@@ -280,111 +265,30 @@ export default function Home() {
     };
   }, [connectSSE]);
 
-  // Autonomous Real-Life simulation ticker fallback (runs seamlessly if backend is restarting)
-  useEffect(() => {
-    if (connected) return;
-
-    let secInPhase = 0;
-    let currPhaseNum = 1;
-
-    const interval = setInterval(() => {
-      secInPhase += 2;
-
-      // Realistic 5-phase schedule: 35s, 25s, 20s, 25s, 20s
-      const durations = [35, 25, 20, 25, 20];
-      const titles = [
-        'Phase 1: Quiescent Surveillance & Ambient Ingestion',
-        'Phase 2: Micro-seismic Swarm & Magmatic Pressurization',
-        'Phase 3: Flank Instability & Thermal Hotspot Surge',
-        'Phase 4: Flank Displacement & Tsunami Wavefront',
-        'Phase 5: Wave Dissipation & Post-Crisis Calibration',
-      ];
-      const names = [
-        'QUIESCENT_BASELINE',
-        'MAGMA_INTRUSION_SWARM',
-        'FLANK_DEFORMATION',
-        'CRITICAL_SURGE_TSUNAMI',
-        'POST_SURGE_RECOVERY',
-      ];
-      const activities = [21.4, 48.6, 78.2, 96.5, 32.0];
-      const energies = [1.2, 5.4, 13.8, 38.0, 3.2];
-      const statuses = ['NORMAL', 'ADVISORY', 'WATCH', 'CRITICAL ALERT', 'RECOVERY'];
-
-      const maxDur = durations[currPhaseNum - 1];
-      if (secInPhase >= maxDur) {
-        secInPhase = 0;
-        currPhaseNum = (currPhaseNum % 5) + 1;
-      }
-
-      const activeIdx = currPhaseNum - 1;
-      const fallbackPhase: LifecyclePhase = {
-        phase_number: currPhaseNum,
-        phase_name: names[activeIdx],
-        phase_title: titles[activeIdx],
-        activity_level: activities[activeIdx],
-        duration_sec: maxDur,
-        elapsed_sec: secInPhase,
-        seismic_energy: energies[activeIdx],
-        status: statuses[activeIdx],
-        timestamp: new Date().toISOString(),
-      };
-
-      setPhase(fallbackPhase);
-
-      // Handle tsunami state in fallback
-      if (currPhaseNum === 4) {
-        setTsunami({
-          active: true,
-          detection_time: new Date().toISOString(),
-          sensor_id: 'Marina-Jukung-Anyer',
-          wave_anomaly: 3.2,
-          affected_zones: [
-            'Zone 1 — Anyer Coastal Strip (Wave: 3.2m, ETA: 22m)',
-            'Zone 2 — Ciwandan Industrial Port (Wave: 2.6m, ETA: 28m)',
-            'Zone 3 — Carita & Labuan Corridor (Wave: 2.9m, ETA: 35m)',
-            'Zone 4 — South Lampung / Rajabasa (Wave: 2.4m, ETA: 31m)',
-          ],
-          response_actions: [
-            'Sound coastal sirens across Banten and South Lampung',
-            'Mandatory vertical evacuation to >15m elevation',
-            'Suspend Merak-Bakauheni maritime ferry transit',
-            'Deploy BASARNAS and BNPB emergency forward units',
-          ],
-          severity: 'CRITICAL',
-          timestamp: new Date().toISOString(),
-        });
-      } else if (currPhaseNum === 5) {
-        setTsunami(null);
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [connected]);
-
   const activity =
     phase?.activity_level ??
     activityIndex?.overall_percentage ??
-    status?.volcanic_activity ??
-    21.4;
+    status?.seismic_intensity ??
+    15.0;
 
   const trend =
-    phase?.phase_name === 'CRITICAL_SURGE_TSUNAMI'
-      ? 'COLLAPSE DETECTED'
-      : phase?.phase_name === 'FLANK_DEFORMATION'
-      ? 'RAPID INFLATION'
-      : phase?.phase_name === 'MAGMA_INTRUSION_SWARM'
-      ? 'RISING SWARM'
+    phase?.phase_number === 4
+      ? 'TSUNAMI WARNING'
+      : phase?.phase_number === 3
+      ? 'MAINSHOCK RUPTURE'
+      : phase?.phase_number === 2
+      ? 'PRECURSOR SWARM'
       : activityIndex?.trend_direction ?? status?.trend_direction ?? 'STABLE';
 
   const riskLevel =
-    phase?.phase_number === 4
+    phase?.phase_number === 4 || phase?.phase_number === 3
       ? 'CRITICAL'
-      : phase?.phase_number === 3
+      : phase?.phase_number === 2
       ? 'HIGH'
       : status?.risk_level ?? 'NORMAL';
 
   const alertCount =
-    tsunami?.active || phase?.phase_number === 4
+    tsunami?.active || phase?.phase_number === 4 || phase?.phase_number === 3
       ? 1
       : status?.active_alerts ?? 0;
 
@@ -400,34 +304,39 @@ export default function Home() {
         {/* Top Mission Control Telemetry HUD Ribbon */}
         <TelemetryHUD phase={phase} connected={connected} />
 
-        {/* Left Column: Tactical Satellite Map + Seismograph Drum Visualizer */}
+        {/* Left Column: National Megathrust Map + Broadband Seismometer Drum */}
         <div className="dashboard__left-col">
           <div className="map-container">
             <div className="map-tactical-header">
-              <span className="map-tactical-header__icon">🛰️</span>
-              <span className="map-tactical-header__title">TACTICAL RADAR SURVEILLANCE // SUNDA STRAIT SECTOR</span>
-              <span className="map-tactical-header__coords">06°06&apos;07&quot;S 105°25&apos;23&quot;E</span>
+              <span className="map-tactical-header__icon">🌐</span>
+              <span className="map-tactical-header__title">
+                INDONESIAN SUBDUCTION & MEGATHRUST RADAR // {phase?.scenario_name || 'NATIONAL OVERVIEW'}
+              </span>
+              <span className="map-tactical-header__coords">
+                FAULT: {phase?.fault_zone || 'Sunda Megathrust'}
+              </span>
             </div>
             <MapComponent
               activityLevel={activity}
               tsunamiActive={tsunami?.active ?? phase?.phase_number === 4}
+              phase={phase}
             />
           </div>
 
           <Seismograph
             seismicEnergy={phase?.seismic_energy ?? 1.2}
             activityLevel={activity}
-            phaseName={phase?.phase_name ?? 'QUIESCENT_BASELINE'}
+            phaseName={phase?.phase_name ?? 'SEISMIC_BASELINE'}
           />
         </div>
 
-        {/* Right Column: Volcanic Activity Gauge + Sensor Metrics */}
+        {/* Right Column: MMI Intensity Gauge + Sensor Metrics */}
         <div className="sidebar">
           <div className="card">
             <div className="card__header">
               <span className="card__title">
-                <span className="card__title-icon">🌋</span>
-                Volcanic Activity Index
+                <span className="card__title-icon">📊</span>
+                Seismic Intensity Index (MMI)
               </span>
               <span className="card__phase-chip">
                 PHASE {phase?.phase_number ?? 1}/5
@@ -439,22 +348,20 @@ export default function Home() {
           <MetricCards
             oceanStatus={
               tsunami?.active || phase?.phase_number === 4
-                ? 'TSUNAMI SURGE DETECTED'
+                ? 'TSUNAMI WAVE FRONT PROPAGATING'
                 : status?.ocean_status ?? 'NORMAL'
             }
             weatherStatus={status?.weather_status ?? 'NORMAL'}
-            maritimeStatus={
-              phase?.phase_number === 4
-                ? 'EMERGENCY LOCKDOWN'
-                : phase?.phase_number === 3
-                ? 'CAUTIONARY ADVISORY'
-                : status?.maritime_status ?? 'NORMAL'
+            infraStatus={
+              phase?.phase_number === 3 || phase?.phase_number === 4
+                ? 'HIGH INTENSITY SHAKING'
+                : status?.infra_status ?? 'NORMAL'
             }
             activityIndex={activityIndex}
           />
         </div>
 
-        {/* Tsunami Scenario Banner (Auto-rendered in Critical Phase) */}
+        {/* Tsunami Scenario Banner (Auto-rendered during Tsunami Phase) */}
         {tsunami?.active && <TsunamiPanel scenario={tsunami} />}
 
         {/* Explainable AI Decision-Support Assessment */}

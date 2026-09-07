@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"krakatau-sentinel/internal/config"
+	"gempa-sentinel/internal/config"
 )
 
 func TestConfigDefaults(t *testing.T) {

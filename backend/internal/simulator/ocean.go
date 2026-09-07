@@ -6,145 +6,117 @@ import (
 	"math/rand"
 	"time"
 
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/models"
 )
 
-// generateOceanEvents produces baseline ocean sensor events
-func (s *Simulator) generateOceanEvents(ctx context.Context) {
-	sensors := []struct {
-		id  string
-		lat float64
-		lng float64
-	}{
-		{"Banten-01", -6.15, 105.35},
-		{"Banten-02", -6.08, 105.50},
-		{"Banten-03", -6.20, 105.38},
-		{"Lampung-01", -5.95, 105.45},
-	}
+type tideGauge struct {
+	id   string
+	name string
+	lat  float64
+	lon  float64
+}
 
+var indonesianBuoys = []tideGauge{
+	{"BUOY-INA-01", "Selat Sunda / Pulau Sebesi", -5.95, 105.48},
+	{"BUOY-INA-02", "Pesisir Padang / Mentawai", -1.15, 100.12},
+	{"BUOY-INA-03", "Cilacap Samudra Hindia", -7.95, 109.10},
+	{"BUOY-INA-04", "Teluk Palu / Pantoloan", -0.72, 119.86},
+	{"BUOY-INA-05", "Banda Aceh Samudra Hindia", 5.62, 95.15},
+	{"BUOY-INA-06", "Pangandaran Selatan", -7.78, 108.65},
+}
+
+// generateOceanEvents produces tsunami buoy & tide gauge sensor readings
+func (s *Simulator) generateOceanEvents(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
+			sensor := indonesianBuoys[rand.Intn(len(indonesianBuoys))]
+
 			s.mu.RLock()
 			mode := s.mode
+			phase := s.currentPhase
+			sc := s.currentScenario
 			s.mu.RUnlock()
 
-			sensor := sensors[rand.Intn(len(sensors))]
-			var event models.OceanEvent
+			var seaLevel, waveH, tsunamiReading, buoyData float64
+			var waveEta int
 
-			switch mode {
-			case ModeTsunamiScenario:
-				event = s.tsunamiOceanEvent(sensor.id, sensor.lat, sensor.lng)
-				time.Sleep(jitter(3*time.Second, 0.3))
-			default:
-				event = s.normalOceanEvent(sensor.id, sensor.lat, sensor.lng)
-				time.Sleep(jitter(10*time.Second, 0.5))
+			if mode == ModeTsunamiPropagation || phase.PhaseNumber == 4 {
+				// Megathrust tsunami wave detected
+				ratio := float64(phase.ElapsedSec) / float64(max(phase.DurationSec, 1))
+				maxH := 8.0
+				if sc != nil && sc.TsunamiMaxHeight > 0 {
+					maxH = sc.TsunamiMaxHeight
+				}
+				waveH = 1.0 + ratio*(maxH-1.0) + rand.Float64()*0.8
+				seaLevel = waveH * 0.7
+				tsunamiReading = waveH * 1.2
+				buoyData = waveH * 0.9
+				waveEta = max(1, int((1.0-ratio)*25))
+			} else {
+				seaLevel = -0.1 + rand.Float64()*0.2
+				waveH = 0.3 + rand.Float64()*0.5
+				tsunamiReading = 0.0
+				buoyData = 0.05 + rand.Float64()*0.1
+				waveEta = 0
+			}
+
+			event := models.OceanEvent{
+				Type:                 "OCEAN",
+				SensorID:             sensor.id,
+				SeaLevel:             seaLevel,
+				WaveHeight:           waveH,
+				TsunamiSensorReading: tsunamiReading,
+				BuoyData:             buoyData,
+				WaveETA:              waveEta,
+				Latitude:             sensor.lat,
+				Longitude:            sensor.lon,
+				Timestamp:            time.Now(),
 			}
 
 			_ = s.producer.Produce(config.TopicNames.Ocean, sensor.id, event)
 			s.hub.BroadcastAll("event", map[string]interface{}{
 				"type":        "OCEAN",
-				"description": formatOceanDescription(event),
+				"description": formatOceanDescription(event, sensor.name),
 				"severity":    oceanSeverity(event),
 				"timestamp":   event.Timestamp,
 				"data":        event,
 			})
+
+			time.Sleep(jitter(5*time.Second, 0.3))
 		}
 	}
 }
 
-func (s *Simulator) normalOceanEvent(sensorID string, lat, lng float64) models.OceanEvent {
-	return models.OceanEvent{
-		Type:                 "OCEAN",
-		SensorID:             sensorID,
-		SeaLevel:             -0.1 + rand.Float64()*0.2,
-		WaveHeight:           0.3 + rand.Float64()*0.8,
-		TsunamiSensorReading: 0.0,
-		BuoyData:             -0.05 + rand.Float64()*0.1,
-		Latitude:             lat,
-		Longitude:            lng,
-		Timestamp:            time.Now(),
+func formatOceanDescription(e models.OceanEvent, name string) string {
+	if e.WaveHeight > 3.0 {
+		return fmt.Sprintf("TSUNAMI ALERT: %.1fm wave detected at %s (%s) — ETA %d min", e.WaveHeight, e.SensorID, name, e.WaveETA)
 	}
-}
-
-func (s *Simulator) tsunamiOceanEvent(sensorID string, lat, lng float64) models.OceanEvent {
-	s.mu.RLock()
-	progress := s.tsunamiProgress
-	s.mu.RUnlock()
-
-	return models.OceanEvent{
-		Type:                 "OCEAN",
-		SensorID:             sensorID,
-		SeaLevel:             progress * 2.8 + rand.Float64()*0.5,
-		WaveHeight:           0.5 + progress*3.5 + rand.Float64()*0.8,
-		TsunamiSensorReading: progress * 4.2,
-		BuoyData:             progress * 1.8 + rand.Float64()*0.3,
-		Latitude:             lat,
-		Longitude:            lng,
-		Timestamp:            time.Now(),
+	if e.WaveHeight > 1.0 {
+		return fmt.Sprintf("Wave surge: %.1fm at %s (%s)", e.WaveHeight, e.SensorID, name)
 	}
-}
-
-func (s *Simulator) produceOceanAnomaly(stage int) {
-	anomalies := []struct {
-		sensor    string
-		seaLevel  float64
-		waveH     float64
-		desc      string
-	}{
-		{"Banten-03", 0.8, 1.2, "Sea level change +0.8m detected"},
-		{"Banten-03", 1.5, 2.1, "Wave height anomaly +2.1m confirmed"},
-		{"Banten-01", 2.1, 2.8, "Multiple sensors confirm wave anomaly"},
-		{"Lampung-01", 2.5, 3.2, "Anomaly spreading — coastal zones identified"},
-		{"Banten-02", 2.8, 3.5, "Full anomaly profile — impact assessment"},
-	}
-
-	if stage >= len(anomalies) {
-		stage = len(anomalies) - 1
-	}
-
-	a := anomalies[stage]
-	event := models.OceanEvent{
-		Type:                 "OCEAN",
-		SensorID:             a.sensor,
-		SeaLevel:             a.seaLevel,
-		WaveHeight:           a.waveH,
-		TsunamiSensorReading: a.seaLevel * 1.5,
-		BuoyData:             a.seaLevel * 0.6,
-		Latitude:             -6.20,
-		Longitude:            105.38,
-		Timestamp:            time.Now(),
-	}
-
-	_ = s.producer.Produce(config.TopicNames.Ocean, a.sensor, event)
-	s.hub.BroadcastAll("event", map[string]interface{}{
-		"type":        "OCEAN",
-		"description": a.desc,
-		"severity":    "CRITICAL",
-		"timestamp":   event.Timestamp,
-		"data":        event,
-	})
-}
-
-func formatOceanDescription(e models.OceanEvent) string {
-	if e.SeaLevel > 1.0 {
-		return fmt.Sprintf("⚠ Sea level anomaly +%.1fm on %s", e.SeaLevel, e.SensorID)
-	}
-	if e.WaveHeight > 2.0 {
-		return fmt.Sprintf("⚠ Wave height anomaly %.1fm on %s", e.WaveHeight, e.SensorID)
-	}
-	return fmt.Sprintf("Sea level %.2fm, wave height %.1fm — %s", e.SeaLevel, e.WaveHeight, e.SensorID)
+	return fmt.Sprintf("Buoy %s (%s): Normal sea level (%.2fm, wave %.1fm)", e.SensorID, name, e.SeaLevel, e.WaveHeight)
 }
 
 func oceanSeverity(e models.OceanEvent) string {
-	if e.SeaLevel > 1.5 || e.WaveHeight > 2.5 {
+	if e.WaveHeight > 5.0 {
 		return "CRITICAL"
 	}
-	if e.SeaLevel > 0.5 || e.WaveHeight > 1.5 {
+	if e.WaveHeight > 1.5 {
 		return "HIGH"
 	}
+	if e.WaveHeight > 0.8 {
+		return "MEDIUM"
+	}
 	return "LOW"
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

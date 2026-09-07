@@ -43,16 +43,16 @@ var TopicNames = struct {
 	CorrelatedAlerts string
 	TsunamiScenarios string
 }{
-	Seismic:          "volcano.seismic",
-	Activity:         "volcano.activity",
-	Ocean:            "volcano.ocean",
-	Weather:          "volcano.weather",
-	Satellite:        "volcano.satellite",
-	Maritime:         "volcano.maritime",
-	Population:       "volcano.population",
-	ActivityIndex:    "volcano.activity_index",
-	CorrelatedAlerts: "volcano.correlated_alerts",
-	TsunamiScenarios: "volcano.tsunami_scenarios",
+	Seismic:          "gempa.seismic",
+	Activity:         "gempa.stations",
+	Ocean:            "gempa.tsunami",
+	Weather:          "gempa.weather",
+	Satellite:        "gempa.satellite",
+	Maritime:         "gempa.infrastructure",
+	Population:       "gempa.population",
+	ActivityIndex:    "gempa.intensity_index",
+	CorrelatedAlerts: "gempa.correlated_alerts",
+	TsunamiScenarios: "gempa.tsunami_scenarios",
 }
 
 // AllSourceTopics returns all source topic names

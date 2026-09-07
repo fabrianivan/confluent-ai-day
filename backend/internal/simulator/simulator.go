@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/hub"
-	"krakatau-sentinel/internal/kafka"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/hub"
+	"gempa-sentinel/internal/kafka"
+	"gempa-sentinel/internal/models"
 )
 
 // SimulationMode represents the current simulation state
@@ -19,11 +19,26 @@ type SimulationMode int
 
 const (
 	ModeNormal SimulationMode = iota
-	ModeVolcanicEscalation
-	ModeTsunamiScenario
+	ModeMegathrustActive
+	ModeTsunamiPropagation
 )
 
-// LifecyclePhase describes the current autonomous real-life simulation phase
+// MegathrustScenario defines a megathrust earthquake simulation scenario
+type MegathrustScenario struct {
+	ID          string
+	Name        string
+	FaultZone   string
+	Magnitude   float64
+	Depth       float64
+	EpicenterLat float64
+	EpicenterLon float64
+	AffectedAreas []string
+	TsunamiMaxHeight float64
+	TsunamiZones []string
+	TsunamiActions []string
+}
+
+// LifecyclePhase describes the current autonomous simulation phase
 type LifecyclePhase struct {
 	PhaseNumber   int       `json:"phase_number"`
 	PhaseName     string    `json:"phase_name"`
@@ -31,8 +46,13 @@ type LifecyclePhase struct {
 	ActivityLevel float64   `json:"activity_level"`
 	DurationSec   int       `json:"duration_sec"`
 	ElapsedSec    int       `json:"elapsed_sec"`
-	SeismicEnergy float64   `json:"seismic_energy"` // in mm/s for live seismograph
+	SeismicEnergy float64   `json:"seismic_energy"`
 	Status        string    `json:"status"`
+	ScenarioName  string    `json:"scenario_name"`
+	Magnitude     float64   `json:"magnitude"`
+	Depth         float64   `json:"depth"`
+	FaultZone     string    `json:"fault_zone"`
+	MMI           int       `json:"mmi"`
 	Timestamp     time.Time `json:"timestamp"`
 }
 
@@ -44,36 +64,137 @@ type Simulator struct {
 	mu        sync.RWMutex
 	cancel    context.CancelFunc
 
-	// Escalation state
-	escalationProgress float64 // 0.0 to 1.0
-	tsunamiProgress    float64 // 0.0 to 1.0
-
-	// Current computed state (local approximation before Flink processes)
+	// Current computed state
 	currentActivity float64
 	trendDirection  string
 
 	// Autonomous lifecycle state
-	currentPhase      LifecyclePhase
-	onTriggerAnalysis func(models.ActivityIndex)
+	currentPhase        LifecyclePhase
+	currentScenario     *MegathrustScenario
+	currentScenarioIdx  int
+	onTriggerAnalysis   func(models.ActivityIndex)
+}
+
+var scenarios = []MegathrustScenario{
+	{
+		ID:          "sunda-strait",
+		Name:        "MEGATHRUST SELAT SUNDA",
+		FaultZone:   "Sunda Strait Subduction",
+		Magnitude:   8.2,
+		Depth:       25.0,
+		EpicenterLat: -6.8,
+		EpicenterLon: 105.2,
+		AffectedAreas: []string{"Banten", "Lampung", "West Java"},
+		TsunamiMaxHeight: 12.0,
+		TsunamiZones: []string{
+			"Zona A — Pesisir Anyer & Carita (Gelombang: 8.2m, ETA: 18 menit)",
+			"Zona B — Pelabuhan Merak & Cilegon (Gelombang: 5.6m, ETA: 22 menit)",
+			"Zona C — Pandeglang & Labuan (Gelombang: 7.4m, ETA: 25 menit)",
+			"Zona D — Lampung Selatan / Kalianda (Gelombang: 6.1m, ETA: 28 menit)",
+		},
+		TsunamiActions: []string{
+			"🚨 EVAKUASI SEGERA ke dataran tinggi (>30m)",
+			"🚨 Aktifkan sirene peringatan tsunami seluruh pesisir Banten & Lampung",
+			"🚨 Hentikan seluruh aktivitas penyeberangan Merak-Bakauheni",
+			"🚨 Mobilisasi BASARNAS & BNPB forward response unit",
+		},
+	},
+	{
+		ID:          "south-java",
+		Name:        "MEGATHRUST SELATAN JAWA",
+		FaultZone:   "Java Trench Subduction",
+		Magnitude:   8.8,
+		Depth:       15.0,
+		EpicenterLat: -9.1,
+		EpicenterLon: 109.5,
+		AffectedAreas: []string{"Central Java", "Yogyakarta", "East Java"},
+		TsunamiMaxHeight: 20.0,
+		TsunamiZones: []string{
+			"Zona A — Cilacap & Pangandaran (Gelombang: 15.2m, ETA: 22 menit)",
+			"Zona B — Kebumen & Purworejo Coast (Gelombang: 12.8m, ETA: 26 menit)",
+			"Zona C — Pacitan & Trenggalek (Gelombang: 10.4m, ETA: 30 menit)",
+			"Zona D — Gunung Kidul (Yogyakarta) (Gelombang: 11.6m, ETA: 28 menit)",
+		},
+		TsunamiActions: []string{
+			"🚨 EVAKUASI MASSAL SEGERA — zona pesisir selatan Jawa",
+			"🚨 Aktifkan EWS (Early Warning System) BMKG seluruh Jawa",
+			"🚨 Tutup seluruh pelabuhan pesisir selatan",
+			"🚨 Deploy TNI & Polri untuk evakuasi Cilacap-Pangandaran-Pacitan corridor",
+		},
+	},
+	{
+		ID:          "mentawai",
+		Name:        "MEGATHRUST MENTAWAI-SIBERUT",
+		FaultZone:   "Sunda Megathrust (Mentawai Segment)",
+		Magnitude:   9.0,
+		Depth:       12.0,
+		EpicenterLat: -2.5,
+		EpicenterLon: 99.8,
+		AffectedAreas: []string{"West Sumatra", "Mentawai Islands", "Bengkulu"},
+		TsunamiMaxHeight: 25.0,
+		TsunamiZones: []string{
+			"Zona A — Kota Padang (Gelombang: 18.5m, ETA: 20 menit)",
+			"Zona B — Pariaman & Padang Pariaman (Gelombang: 14.2m, ETA: 22 menit)",
+			"Zona C — Kepulauan Mentawai (Gelombang: 22.0m, ETA: 8 menit)",
+			"Zona D — Bengkulu Coast (Gelombang: 12.6m, ETA: 35 menit)",
+		},
+		TsunamiActions: []string{
+			"🚨 TSUNAMI MERUSAK — EVAKUASI TOTAL Padang & Mentawai",
+			"🚨 Maximum alert: Gelombang 20m+ menuju Padang",
+			"🚨 Aktifkan semua shelter tsunami vertikal di Padang",
+			"🚨 Evakuasi udara penduduk Mentawai oleh TNI AU",
+		},
+	},
+	{
+		ID:          "palu-koro",
+		Name:        "MEGATHRUST SULAWESI-PALU",
+		FaultZone:   "Palu-Koro Strike-Slip Fault",
+		Magnitude:   7.5,
+		Depth:       10.0,
+		EpicenterLat: -0.18,
+		EpicenterLon: 119.85,
+		AffectedAreas: []string{"Palu", "Donggala", "Sigi", "Parigi"},
+		TsunamiMaxHeight: 11.0,
+		TsunamiZones: []string{
+			"Zona A — Teluk Palu (Gelombang: 9.8m, Tipe: Submarine Landslide Tsunami)",
+			"Zona B — Donggala & Sirenja (Gelombang: 6.2m, ETA: 5 menit)",
+			"Zona C — Zona Likuefaksi Petobo & Balaroa (Liquefaction)",
+			"Zona D — Pantai Barat Donggala (Gelombang: 5.4m, ETA: 8 menit)",
+		},
+		TsunamiActions: []string{
+			"🚨 TSUNAMI LOKAL — waktu evakuasi sangat singkat (<5 menit)",
+			"🚨 Alert: Liquefaction terdeteksi di Petobo & Balaroa",
+			"🚨 Evakuasi vertikal immediate — Teluk Palu",
+			"🚨 Koordinasi SAR terpadu Palu-Donggala-Sigi",
+		},
+	},
 }
 
 // NewSimulator creates a new event simulator
 func NewSimulator(producer *kafka.Producer, h *hub.SSEHub) *Simulator {
+	sc := &scenarios[0]
 	return &Simulator{
 		producer:        producer,
 		hub:             h,
 		mode:            ModeNormal,
-		currentActivity: 18.0 + rand.Float64()*6.0,
+		currentActivity: 12.0 + rand.Float64()*5.0,
 		trendDirection:  "STABLE",
+		currentScenario: sc,
+		currentScenarioIdx: 0,
 		currentPhase: LifecyclePhase{
 			PhaseNumber:   1,
-			PhaseName:     "QUIESCENT_BASELINE",
-			PhaseTitle:    "Phase 1: Quiescent Surveillance & Ambient Ingestion",
-			ActivityLevel: 21.4,
-			DurationSec:   35,
+			PhaseName:     "SEISMIC_BASELINE",
+			PhaseTitle:    "Fase 1: Baseline Monitoring & USGS Feed Ingestion",
+			ActivityLevel: 12.0,
+			DurationSec:   30,
 			ElapsedSec:    1,
-			SeismicEnergy: 1.2,
+			SeismicEnergy: 0.8,
 			Status:        "NORMAL",
+			ScenarioName:  sc.Name,
+			Magnitude:     0,
+			Depth:         0,
+			FaultZone:     sc.FaultZone,
+			MMI:           1,
 			Timestamp:     time.Now(),
 		},
 	}
@@ -86,144 +207,104 @@ func (s *Simulator) SetAnalysisTrigger(fn func(models.ActivityIndex)) {
 	s.onTriggerAnalysis = fn
 }
 
-// Start begins generating baseline events and starts autonomous crisis lifecycle
+// Start begins generating events and starts autonomous megathrust lifecycle
 func (s *Simulator) Start(ctx context.Context) {
-	log.Println("🌋 Event simulator started — running autonomous real-life surveillance lifecycle")
+	log.Println("🌍 GEMPA SENTINEL — Event simulator started — running autonomous megathrust lifecycle")
 
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
 	go s.generateSeismicEvents(ctx)
-	go s.generateVolcanicEvents(ctx)
+	go s.generateStationEvents(ctx)
 	go s.generateOceanEvents(ctx)
 	go s.generateWeatherEvents(ctx)
 	go s.generateSatelliteEvents(ctx)
-	go s.generateMaritimeEvents(ctx)
+	go s.generateInfrastructureEvents(ctx)
 	go s.generatePopulationEvents(ctx)
 	go s.broadcastMetrics(ctx)
 	go s.startAutonomousLifecycle(ctx)
-}
-
-// TriggerVolcanicEscalation starts the volcanic escalation scenario
-func (s *Simulator) TriggerVolcanicEscalation() {
-	s.mu.Lock()
-	s.mode = ModeVolcanicEscalation
-	s.escalationProgress = 0.0
-	s.mu.Unlock()
-
-	log.Println("🔥 VOLCANIC ESCALATION TRIGGERED")
-
-	go s.runVolcanicEscalation()
-}
-
-// TriggerTsunami starts the tsunami scenario
-func (s *Simulator) TriggerTsunami() {
-	s.mu.Lock()
-	s.mode = ModeTsunamiScenario
-	s.tsunamiProgress = 0.0
-	s.mu.Unlock()
-
-	log.Println("🌊 TSUNAMI SCENARIO TRIGGERED")
-
-	go s.runTsunamiScenario()
-}
-
-// TriggerReal2018Disaster replays the actual December 22, 2018 Anak Krakatau flank collapse and tsunami
-func (s *Simulator) TriggerReal2018Disaster() {
-	s.mu.Lock()
-	s.mode = ModeVolcanicEscalation
-	s.escalationProgress = 0.0
-	s.currentActivity = 65.0
-	s.trendDirection = "FLANK COLLAPSE"
-	s.mu.Unlock()
-
-	log.Println("🚨 HISTORICAL REAL 2018 KRAKATAU FLANK COLLAPSE & TSUNAMI REPLAY TRIGGERED")
-
-	go s.runReal2018Disaster()
-}
-
-func (s *Simulator) runReal2018Disaster() {
-	stages := []struct {
-		delay     time.Duration
-		activity  float64
-		desc      string
-		eventType string
-	}{
-		{1 * time.Second, 52, "20:55 WIB: PVMBG Pasauran seismograph records continuous volcanic tremor surge (amplitude 35mm)", "VOLCANIC"},
-		{4 * time.Second, 78, "21:03 WIB: 64-hectare southwest flank collapse into Sunda Strait (M3.3 equivalent displacement shockwave)", "SEISMIC"},
-		{8 * time.Second, 89, "21:15 WIB: Sentinel-1 SAR confirms massive caldera loss; SO2 gas emissions spike >5,000 tons/day", "SATELLITE"},
-		{12 * time.Second, 94, "21:27 WIB: Tide gauge Marina Jukung Anyer detects initial +0.9m sudden water level displacement", "OCEAN"},
-		{16 * time.Second, 97, "21:31 WIB: Tide gauge Ciwandan (+1.2m) & Kota Agung (+0.36m) confirm destructive tsunami wavefront", "OCEAN"},
-		{20 * time.Second, 99, "21:40 WIB: Extreme runup (up to 3.5m) devastates Carita Beach, Labuan, and South Lampung coast", "POPULATION"},
-	}
-
-	for _, stage := range stages {
-		time.Sleep(stage.delay)
-		s.mu.Lock()
-		s.currentActivity = stage.activity
-		s.trendDirection = "CRITICAL FLANK COLLAPSE"
-		s.mu.Unlock()
-
-		s.hub.BroadcastAll("event", map[string]interface{}{
-			"type":        stage.eventType,
-			"description": fmt.Sprintf("HISTORICAL REAL 2018: %s", stage.desc),
-			"severity":    "CRITICAL",
-			"timestamp":   time.Now(),
-		})
-	}
-
-	scenario := models.TsunamiScenario{
-		Active:        true,
-		DetectionTime: time.Now().Add(-20 * time.Second),
-		SensorID:      "Marina Jukung Anyer & Ciwandan (2018 Real Record)",
-		WaveAnomaly:   3.5,
-		AffectedZones: []string{
-			"Zone A — Anyer Coastal Sector (Actual 2018: Extreme Runup)",
-			"Zone B — Carita Beach Resort Corridor (Actual 2018: 3.5m Runup, Severe Destruction)",
-			"Zone C — Labuan Harbor & Dense Settlements (Actual 2018: 2.8m Wave Surge)",
-			"Zone D — Pandeglang Coastline (Actual 2018: 267 Fatalities)",
-			"Zone E — South Lampung / Kalianda (Actual 2018: 114 Fatalities)",
-		},
-		ResponseActions: []string{
-			"🚨 MANDATORY IMMEDIATE EVACUATION TO HIGH GROUND (>20m)",
-			"🚨 Sound all manual coastal sirens across Banten & Lampung",
-			"🚨 Halt Merak - Bakauheni ferry services across Sunda Strait",
-			"🚨 Mobilize National SAR Agency (Basarnas) & BNPB Emergency Response",
-		},
-		Severity:  "CRITICAL",
-		Timestamp: time.Now(),
-	}
-
-	_ = s.producer.Produce(config.TopicNames.TsunamiScenarios, "real-2018-disaster", scenario)
-	s.hub.BroadcastAll("tsunami", scenario)
 }
 
 // Reset returns the simulator to normal mode
 func (s *Simulator) Reset() {
 	s.mu.Lock()
 	s.mode = ModeNormal
-	s.escalationProgress = 0.0
-	s.tsunamiProgress = 0.0
-	s.currentActivity = 18.0 + rand.Float64()*10.0
+	s.currentActivity = 12.0 + rand.Float64()*5.0
 	s.trendDirection = "STABLE"
 	s.mu.Unlock()
 
 	log.Println("↺ Simulator reset to normal mode")
 
-	// Broadcast reset
 	s.hub.BroadcastAll("tsunami", models.TsunamiScenario{Active: false, Timestamp: time.Now()})
 	s.hub.BroadcastAll("ai_analysis", models.AIAnalysis{
-		Status:      "NORMAL",
-		Observations: []string{"All indicators returned to baseline levels"},
-		Assessment:  "System reset. All monitoring indicators within normal parameters.",
+		Status:       "NORMAL",
+		Observations: []string{"All seismic indicators returned to baseline levels"},
+		Assessment:   "System reset. No significant seismic activity detected.",
 		Recommendations: []string{
-			"Continue standard monitoring schedule",
-			"No action required at this time",
+			"Continue standard monitoring",
+			"No action required",
 		},
 		Confidence: 0.95,
-		Disclaimer: "This is a decision-support assessment, not an official eruption prediction.",
+		Disclaimer: "This is a decision-support assessment, not an official earthquake prediction.",
 		Timestamp:  time.Now(),
 	})
+}
+
+// TriggerMegathrustScenario jumps to or triggers a specific scenario
+func (s *Simulator) TriggerMegathrustScenario(id string) {
+	s.mu.Lock()
+	for i, sc := range scenarios {
+		if sc.ID == id {
+			s.currentScenarioIdx = i
+			s.currentScenario = &scenarios[i]
+			break
+		}
+	}
+	s.mode = ModeMegathrustActive
+	s.currentActivity = 85.0
+	s.trendDirection = "SURGING"
+	s.mu.Unlock()
+	log.Printf("🚨 Manual trigger: Megathrust scenario %s", id)
+}
+
+// TriggerVolcanicEscalation triggers megathrust scenario (backward compatibility)
+func (s *Simulator) TriggerVolcanicEscalation() {
+	s.TriggerMegathrustScenario("sunda-strait")
+}
+
+// TriggerTsunami activates tsunami mode
+func (s *Simulator) TriggerTsunami() {
+	s.mu.Lock()
+	s.mode = ModeTsunamiPropagation
+	s.trendDirection = "TSUNAMI WARNING"
+	sc := s.currentScenario
+	s.mu.Unlock()
+
+	log.Println("🌊 Tsunami scenario triggered")
+	zones := []string{"Pesisir Banten", "Pesisir Lampung"}
+	actions := []string{"Evakuasi segera ke tempat tinggi"}
+	maxH := 8.5
+	if sc != nil {
+		zones = sc.TsunamiZones
+		actions = sc.TsunamiActions
+		maxH = sc.TsunamiMaxHeight
+	}
+
+	s.hub.BroadcastAll("tsunami", models.TsunamiScenario{
+		Active:          true,
+		DetectionTime:   time.Now(),
+		SensorID:        "BUOY-INA-01",
+		WaveAnomaly:     maxH,
+		AffectedZones:   zones,
+		ResponseActions: actions,
+		Severity:        "CRITICAL",
+		Timestamp:       time.Now(),
+	})
+}
+
+// TriggerReal2018Disaster triggers the Sulawesi-Palu 2018 scenario
+func (s *Simulator) TriggerReal2018Disaster() {
+	s.TriggerMegathrustScenario("palu-koro")
 }
 
 // GetStatus returns the current system status
@@ -233,148 +314,41 @@ func (s *Simulator) GetStatus() models.SystemStatus {
 
 	riskLevel := "NORMAL"
 	oceanStatus := "NORMAL"
-	if s.currentActivity > 70 {
+	infraStatus := "NORMAL"
+
+	if s.currentActivity > 80 {
 		riskLevel = "CRITICAL"
-	} else if s.currentActivity > 50 {
-		riskLevel = "ELEVATED"
-	} else if s.currentActivity > 35 {
+	} else if s.currentActivity > 55 {
+		riskLevel = "HIGH"
+	} else if s.currentActivity > 30 {
 		riskLevel = "ADVISORY"
 	}
 
-	if s.mode == ModeTsunamiScenario {
-		oceanStatus = "ANOMALY DETECTED"
+	if s.mode == ModeTsunamiPropagation {
+		oceanStatus = "TSUNAMI DETECTED"
+	}
+	if s.currentActivity > 70 {
+		infraStatus = "DAMAGE ASSESSED"
 	}
 
 	alerts := 0
 	if s.currentActivity > 50 {
 		alerts++
 	}
-	if s.mode == ModeTsunamiScenario {
+	if s.mode == ModeTsunamiPropagation {
 		alerts++
 	}
 
 	return models.SystemStatus{
-		VolcanicActivity: s.currentActivity,
+		SeismicIntensity: s.currentActivity,
 		OceanStatus:      oceanStatus,
 		WeatherStatus:    "NORMAL",
-		MaritimeStatus:   "NORMAL",
+		InfraStatus:      infraStatus,
 		ActiveAlerts:     alerts,
 		RiskLevel:        riskLevel,
 		TrendDirection:   s.trendDirection,
 		LastUpdate:       time.Now(),
 	}
-}
-
-// runVolcanicEscalation simulates a ~30-second volcanic escalation
-func (s *Simulator) runVolcanicEscalation() {
-	stages := []struct {
-		delay       time.Duration
-		activity    float64
-		trend       string
-		description string
-	}{
-		{0 * time.Second, 28, "INCREASING", "Initial seismic uptick detected"},
-		{3 * time.Second, 35, "INCREASING", "Earthquake frequency rising"},
-		{6 * time.Second, 41, "INCREASING", "Tremor intensity increasing"},
-		{9 * time.Second, 48, "RAPIDLY INCREASING", "Multiple seismic indicators elevated"},
-		{12 * time.Second, 55, "RAPIDLY INCREASING", "Ground deformation detected"},
-		{15 * time.Second, 62, "RAPIDLY INCREASING", "Thermal anomaly confirmed"},
-		{18 * time.Second, 69, "RAPIDLY INCREASING", "Gas emissions significantly elevated"},
-		{21 * time.Second, 76, "RAPIDLY INCREASING", "Multiple independent indicators escalating"},
-		{24 * time.Second, 82, "RAPIDLY INCREASING", "Activity index at elevated level"},
-		{27 * time.Second, 85, "HIGH", "Peak activity — sustained elevated readings"},
-	}
-
-	for i, stage := range stages {
-		s.mu.RLock()
-		if s.mode != ModeVolcanicEscalation {
-			s.mu.RUnlock()
-			return
-		}
-		s.mu.RUnlock()
-
-		if i > 0 {
-			time.Sleep(stage.delay - stages[i-1].delay)
-		}
-
-		s.mu.Lock()
-		s.currentActivity = stage.activity
-		s.trendDirection = stage.trend
-		s.escalationProgress = float64(i+1) / float64(len(stages))
-		s.mu.Unlock()
-
-		// Produce escalated events
-		s.produceEscalatedSeismic(stage.activity)
-		s.produceEscalatedVolcanic(stage.activity)
-		if stage.activity > 55 {
-			s.produceEscalatedSatellite(stage.activity)
-		}
-
-		log.Printf("🌋 Escalation stage %d/10: %.0f%% — %s", i+1, stage.activity, stage.description)
-	}
-}
-
-// runTsunamiScenario simulates a tsunami detection scenario
-func (s *Simulator) runTsunamiScenario() {
-	stages := []struct {
-		delay       time.Duration
-		description string
-	}{
-		{0 * time.Second, "Sea level change detected on sensor Banten-03"},
-		{4 * time.Second, "Wave height anomaly +2.8m confirmed"},
-		{8 * time.Second, "Multiple buoy readings confirm anomaly"},
-		{12 * time.Second, "Affected coastal zones identified"},
-		{16 * time.Second, "Impact assessment complete"},
-	}
-
-	for i, stage := range stages {
-		s.mu.RLock()
-		if s.mode != ModeTsunamiScenario {
-			s.mu.RUnlock()
-			return
-		}
-		s.mu.RUnlock()
-
-		if i > 0 {
-			time.Sleep(stage.delay - stages[i-1].delay)
-		}
-
-		s.mu.Lock()
-		s.tsunamiProgress = float64(i+1) / float64(len(stages))
-		s.mu.Unlock()
-
-		s.produceOceanAnomaly(i)
-		log.Printf("🌊 Tsunami stage %d/5: %s", i+1, stage.description)
-	}
-
-	// Final tsunami scenario broadcast
-	scenario := models.TsunamiScenario{
-		Active:        true,
-		DetectionTime: time.Now().Add(-16 * time.Second),
-		SensorID:      "Banten-03",
-		WaveAnomaly:   2.8,
-		AffectedZones: []string{
-			"Coastal Zone A — Anyer (Pop: 45,000)",
-			"Coastal Zone B — Carita Beach (Pop: 12,000)",
-			"Coastal Zone C — Labuan (Pop: 28,000)",
-			"Coastal Zone D — Pandeglang Coast (Pop: 18,000)",
-		},
-		ResponseActions: []string{
-			"⚠ Activate coastal warning sirens",
-			"⚠ Review evacuation plans for zones A-D",
-			"⚠ Notify maritime traffic in Sunda Strait",
-			"⚠ Alert emergency response teams",
-			"⚠ Monitor wave propagation sensors",
-		},
-		Severity:  "HIGH",
-		Timestamp: time.Now(),
-	}
-
-	// Produce to Kafka
-	_ = s.producer.Produce(config.TopicNames.TsunamiScenarios, "tsunami-scenario", scenario)
-
-	// Broadcast to SSE
-	s.hub.BroadcastAll("tsunami", scenario)
 }
 
 // broadcastMetrics periodically broadcasts current system metrics
@@ -390,7 +364,6 @@ func (s *Simulator) broadcastMetrics(ctx context.Context) {
 			status := s.GetStatus()
 			s.hub.BroadcastAll("metrics", status)
 
-			// Broadcast activity index
 			s.mu.RLock()
 			actIdx := models.ActivityIndex{
 				OverallPercentage: s.currentActivity,
@@ -404,11 +377,6 @@ func (s *Simulator) broadcastMetrics(ctx context.Context) {
 	}
 }
 
-// Helper: add jitter to intervals
-func jitter(base time.Duration, factor float64) time.Duration {
-	return base + time.Duration(float64(base)*factor*(rand.Float64()-0.5))
-}
-
 // GetLifecyclePhase returns the current phase of the autonomous simulation
 func (s *Simulator) GetLifecyclePhase() LifecyclePhase {
 	s.mu.RLock()
@@ -416,89 +384,105 @@ func (s *Simulator) GetLifecyclePhase() LifecyclePhase {
 	return s.currentPhase
 }
 
-// startAutonomousLifecycle runs a continuous, realistic 5-phase volcanic crisis lifecycle
+// startAutonomousLifecycle runs continuous megathrust scenario cycles
 func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
-	phases := []struct {
+	type phase struct {
 		number   int
 		name     string
 		title    string
-		duration int // seconds
+		duration int
 		minAct   float64
 		maxAct   float64
 		energy   float64
 		status   string
 		trend    string
+		mmi      int
 		desc     string
 		evtType  string
-	}{
-		{
-			number:   1,
-			name:     "QUIESCENT_BASELINE",
-			title:    "Phase 1: Quiescent Surveillance & Ambient Ingestion",
-			duration: 35,
-			minAct:   18.0,
-			maxAct:   24.0,
-			energy:   1.2,
-			status:   "NORMAL",
-			trend:    "STABLE",
-			desc:     "Ambient baseline: Micro-seismic tremor 0.4–1.2 mm/s, Open-Meteo live atmospheric telemetry nominal",
-			evtType:  "VOLCANIC",
-		},
-		{
-			number:   2,
-			name:     "MAGMA_INTRUSION_SWARM",
-			title:    "Phase 2: Micro-seismic Swarm & Magmatic Pressurization",
-			duration: 25,
-			minAct:   42.0,
-			maxAct:   58.0,
-			energy:   5.8,
-			status:   "ADVISORY",
-			trend:    "RISING SWARM",
-			desc:     "Hydrothermal pressurization detected: Shallow swarm at 3.5km depth, acoustic tremor surge +140%",
-			evtType:  "SEISMIC",
-		},
-		{
-			number:   3,
-			name:     "FLANK_DEFORMATION",
-			title:    "Phase 3: Flank Instability & Thermal Hotspot Surge",
-			duration: 20,
-			minAct:   72.0,
-			maxAct:   85.0,
-			energy:   14.5,
-			status:   "WATCH",
-			trend:    "RAPID INFLATION",
-			desc:     "Radial tiltmeter measures +0.48cm ground displacement on SW rim; infrared thermal radiance heating +3.2°C",
-			evtType:  "SATELLITE",
-		},
-		{
-			number:   4,
-			name:     "CRITICAL_SURGE_TSUNAMI",
-			title:    "Phase 4: Flank Displacement & Tsunami Wavefront",
-			duration: 25,
-			minAct:   94.0,
-			maxAct:   98.5,
-			energy:   38.0,
-			status:   "CRITICAL ALERT",
-			trend:    "COLLAPSE DETECTED",
-			desc:     "🚨 CRITICAL: Rapid submarine mass displacement! Sea level spike detected on Anyer & Ciwandan tide gauges!",
-			evtType:  "OCEAN",
-		},
-		{
-			number:   5,
-			name:     "POST_SURGE_RECOVERY",
-			title:    "Phase 5: Wave Dissipation & Post-Crisis Calibration",
-			duration: 20,
-			minAct:   35.0,
-			maxAct:   20.0,
-			energy:   2.8,
-			status:   "RECOVERY",
-			trend:    "ATTENUATING",
-			desc:     "Wave energy attenuating along Sunda Strait coastline. Tremor amplitude decaying to nominal baseline.",
-			evtType:  "VOLCANIC",
-		},
 	}
 
 	for {
+		// Pick the current scenario
+		s.mu.Lock()
+		sc := scenarios[s.currentScenarioIdx]
+		s.currentScenario = &sc
+		s.mu.Unlock()
+
+		log.Printf("🌍 === STARTING SCENARIO: %s (M%.1f) ===", sc.Name, sc.Magnitude)
+
+		phases := []phase{
+			{
+				number:   1,
+				name:     "SEISMIC_BASELINE",
+				title:    fmt.Sprintf("Fase 1: Baseline Monitoring — %s", sc.FaultZone),
+				duration: 30,
+				minAct:   8.0,
+				maxAct:   15.0,
+				energy:   0.8,
+				status:   "NORMAL",
+				trend:    "STABLE",
+				mmi:      1,
+				desc:     fmt.Sprintf("Monitoring baseline: USGS feed ingestion, %d stasiun seismik aktif di zona %s", 45+rand.Intn(20), sc.FaultZone),
+				evtType:  "SEISMIC",
+			},
+			{
+				number:   2,
+				name:     "PRECURSOR_SWARM",
+				title:    fmt.Sprintf("Fase 2: Precursor Swarm — Foreshock Cluster di %s", sc.AffectedAreas[0]),
+				duration: 25,
+				minAct:   35.0,
+				maxAct:   52.0,
+				energy:   4.5,
+				status:   "ADVISORY",
+				trend:    "SWARM DETECTED",
+				mmi:      4,
+				desc:     fmt.Sprintf("Seismisitas meningkat: Kluster gempa kecil M2.5-4.2 terdeteksi pada kedalaman %.0fkm di segmen %s", sc.Depth+5, sc.FaultZone),
+				evtType:  "SEISMIC",
+			},
+			{
+				number:   3,
+				name:     "MAINSHOCK",
+				title:    fmt.Sprintf("Fase 3: ⚡ MAINSHOCK M%.1f — %s", sc.Magnitude, sc.Name),
+				duration: 20,
+				minAct:   88.0,
+				maxAct:   98.0,
+				energy:   sc.Magnitude * 5.0,
+				status:   "CRITICAL",
+				trend:    "RUPTURE DETECTED",
+				mmi:      mmiFromMagnitude(sc.Magnitude),
+				desc:     fmt.Sprintf("🚨 GEMPA BUMI M%.1f! Episenter %.2f°S, %.2f°E kedalaman %.0fkm — Zona sesar %s", sc.Magnitude, -sc.EpicenterLat, sc.EpicenterLon, sc.Depth, sc.FaultZone),
+				evtType:  "SEISMIC",
+			},
+			{
+				number:   4,
+				name:     "TSUNAMI_PROPAGATION",
+				title:    fmt.Sprintf("Fase 4: 🌊 Propagasi Tsunami — Gelombang menuju %s", sc.AffectedAreas[0]),
+				duration: 25,
+				minAct:   92.0,
+				maxAct:   99.0,
+				energy:   sc.Magnitude * 4.2,
+				status:   "TSUNAMI ALERT",
+				trend:    "TSUNAMI PROPAGATING",
+				mmi:      mmiFromMagnitude(sc.Magnitude),
+				desc:     fmt.Sprintf("🌊 PERINGATAN TSUNAMI: Gelombang %.1fm terdeteksi bergerak menuju pesisir %s", sc.TsunamiMaxHeight, sc.AffectedAreas[0]),
+				evtType:  "OCEAN",
+			},
+			{
+				number:   5,
+				name:     "AFTERSHOCK_RECOVERY",
+				title:    "Fase 5: Aftershock Sequence & Post-Crisis Assessment",
+				duration: 25,
+				minAct:   45.0,
+				maxAct:   18.0,
+				energy:   2.5,
+				status:   "RECOVERY",
+				trend:    "AFTERSHOCK DECAY",
+				mmi:      3,
+				desc:     "Sekuens aftershock dalam fase atenuasi. Intensitas menurun menuju baseline. Penilaian kerusakan sedang berlangsung.",
+				evtType:  "SEISMIC",
+			},
+		}
+
 		for _, p := range phases {
 			select {
 			case <-ctx.Done():
@@ -506,40 +490,36 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 			default:
 			}
 
-			// Broadcast initial phase announcement event
+			// Broadcast phase announcement
 			s.hub.BroadcastAll("event", map[string]interface{}{
 				"type":        p.evtType,
-				"description": fmt.Sprintf("🛰️ [AUTONOMOUS CYCLE] %s", p.desc),
+				"description": fmt.Sprintf("🛰️ [%s] %s", sc.Name, p.desc),
 				"severity":    p.status,
 				"timestamp":   time.Now(),
 			})
 
-			// Handle Phase 4 tsunami scenario
+			// Handle Phase 4: Tsunami scenario
 			if p.number == 4 {
+				s.mu.Lock()
+				s.mode = ModeTsunamiPropagation
+				s.mu.Unlock()
+
 				scenario := models.TsunamiScenario{
-					Active:        true,
-					DetectionTime: time.Now(),
-					SensorID:      "Marina-Jukung-Anyer",
-					WaveAnomaly:   3.2,
-					AffectedZones: []string{
-						"Zone 1 — Anyer Coastal Strip (Wave: 3.2m, ETA: 22m)",
-						"Zone 2 — Ciwandan Industrial Port (Wave: 2.6m, ETA: 28m)",
-						"Zone 3 — Carita & Labuan Corridor (Wave: 2.9m, ETA: 35m)",
-						"Zone 4 — South Lampung / Rajabasa (Wave: 2.4m, ETA: 31m)",
-					},
-					ResponseActions: []string{
-						"Sound coastal sirens across Banten and South Lampung",
-						"Enforce immediate vertical evacuation to >15m elevation",
-						"Halt Merak-Bakauheni maritime ferry transit",
-						"Deploy BASARNAS and BNPB emergency forward response units",
-					},
-					Severity:  "CRITICAL",
-					Timestamp: time.Now(),
+					Active:          true,
+					DetectionTime:   time.Now(),
+					SensorID:        fmt.Sprintf("DART-Buoy-%s", sc.ID),
+					WaveAnomaly:     sc.TsunamiMaxHeight,
+					AffectedZones:   sc.TsunamiZones,
+					ResponseActions: sc.TsunamiActions,
+					Severity:        "CRITICAL",
+					Timestamp:       time.Now(),
 				}
 				s.hub.BroadcastAll("tsunami", scenario)
-				_ = s.producer.Produce(config.TopicNames.TsunamiScenarios, "tsunami-scenario", scenario)
+				_ = s.producer.Produce(config.TopicNames.TsunamiScenarios, sc.ID, scenario)
 			} else if p.number == 5 {
-				// Reset tsunami
+				s.mu.Lock()
+				s.mode = ModeNormal
+				s.mu.Unlock()
 				s.hub.BroadcastAll("tsunami", models.TsunamiScenario{Active: false, Timestamp: time.Now()})
 			}
 
@@ -566,6 +546,11 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 					ElapsedSec:    sec + 1,
 					SeismicEnergy: p.energy * (0.85 + 0.3*rand.Float64()),
 					Status:        p.status,
+					ScenarioName:  sc.Name,
+					Magnitude:     sc.Magnitude,
+					Depth:         sc.Depth,
+					FaultZone:     sc.FaultZone,
+					MMI:           p.mmi,
 					Timestamp:     time.Now(),
 				}
 				s.currentPhase = phaseObj
@@ -573,7 +558,7 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 
 				s.hub.BroadcastAll("lifecycle_phase", phaseObj)
 
-				// Automatically trigger AI Analysis in Phase 3 or 4
+				// Trigger AI analysis in Phase 3 or 4
 				if (p.number == 3 && sec == 5) || (p.number == 4 && sec == 3) {
 					s.mu.RLock()
 					triggerFn := s.onTriggerAnalysis
@@ -582,6 +567,8 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 						triggerFn(models.ActivityIndex{
 							OverallPercentage: activity,
 							TrendDirection:    p.trend,
+							MaxMagnitude:      sc.Magnitude,
+							EarthquakeCount:   20 + rand.Intn(30),
 							Timestamp:         time.Now(),
 						})
 					}
@@ -590,6 +577,36 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 				time.Sleep(1 * time.Second)
 			}
 		}
+
+		// Advance to next scenario
+		s.mu.Lock()
+		s.currentScenarioIdx = (s.currentScenarioIdx + 1) % len(scenarios)
+		s.mu.Unlock()
+
+		log.Printf("🌍 === SCENARIO %s COMPLETE — cycling to next ===", sc.Name)
 	}
 }
 
+// Helper: add jitter to intervals
+func jitter(base time.Duration, factor float64) time.Duration {
+	return base + time.Duration(float64(base)*factor*(rand.Float64()-0.5))
+}
+
+func mmiFromMagnitude(mag float64) int {
+	switch {
+	case mag >= 9.0:
+		return 11
+	case mag >= 8.5:
+		return 10
+	case mag >= 8.0:
+		return 9
+	case mag >= 7.5:
+		return 8
+	case mag >= 7.0:
+		return 7
+	case mag >= 6.0:
+		return 6
+	default:
+		return 5
+	}
+}

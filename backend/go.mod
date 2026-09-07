@@ -1,4 +1,4 @@
-module krakatau-sentinel
+module gempa-sentinel
 
 go 1.27.1
 

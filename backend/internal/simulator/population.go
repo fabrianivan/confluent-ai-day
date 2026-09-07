@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"krakatau-sentinel/internal/config"
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/models"
 )
 
 type zoneInfo struct {

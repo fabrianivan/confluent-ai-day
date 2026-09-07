@@ -17,16 +17,16 @@ export default function GovernancePanel() {
         .catch(() => {
           // Use fallback data
           setGovernance([
-            { topic: 'volcano.seismic', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'Monitoring Team', access: 'Public' },
-            { topic: 'volcano.activity', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'Monitoring Team', access: 'Public' },
-            { topic: 'volcano.ocean', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'Ocean Sensors', access: 'Public' },
-            { topic: 'volcano.weather', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'Weather Service', access: 'Public' },
-            { topic: 'volcano.satellite', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'Satellite Ops', access: 'Public' },
-            { topic: 'volcano.maritime', classification: 'Operational', pii: 'Potential', schema_version: 'v1', owner: 'Maritime Authority', access: 'Restricted' },
-            { topic: 'volcano.population', classification: 'Sensitive', pii: 'Yes', schema_version: 'v2', owner: 'Emergency Management', access: 'Restricted' },
-            { topic: 'volcano.activity_index', classification: 'Derived', pii: 'None', schema_version: 'v1', owner: 'Flink Pipeline', access: 'Internal' },
-            { topic: 'volcano.correlated_alerts', classification: 'Derived', pii: 'None', schema_version: 'v1', owner: 'Flink Pipeline', access: 'Internal' },
-            { topic: 'volcano.tsunami_scenarios', classification: 'Derived', pii: 'None', schema_version: 'v1', owner: 'Flink Pipeline', access: 'Internal' },
+            { topic: 'gempa.seismic', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'BMKG Seismology', access: 'Public' },
+            { topic: 'gempa.stations', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'BMKG Network Ops', access: 'Public' },
+            { topic: 'gempa.tsunami', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'InaTEWS Ocean Sensors', access: 'Public' },
+            { topic: 'gempa.weather', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'BMKG Meteorology', access: 'Public' },
+            { topic: 'gempa.satellite', classification: 'Scientific', pii: 'None', schema_version: 'v1', owner: 'BRIN / InSAR Ops', access: 'Public' },
+            { topic: 'gempa.infrastructure', classification: 'Operational', pii: 'Potential', schema_version: 'v1', owner: 'PUPR & BNPB', access: 'Restricted' },
+            { topic: 'gempa.population', classification: 'Sensitive', pii: 'Yes', schema_version: 'v2', owner: 'BNPB Disaster Relief', access: 'Restricted' },
+            { topic: 'gempa.intensity_index', classification: 'Derived', pii: 'None', schema_version: 'v1', owner: 'Flink Pipeline', access: 'Internal' },
+            { topic: 'gempa.correlated_alerts', classification: 'Derived', pii: 'None', schema_version: 'v1', owner: 'Flink Pipeline', access: 'Internal' },
+            { topic: 'gempa.tsunami_scenarios', classification: 'Derived', pii: 'None', schema_version: 'v1', owner: 'Flink Pipeline', access: 'Internal' },
           ]);
         });
     }

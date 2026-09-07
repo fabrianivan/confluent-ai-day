@@ -1,13 +1,9 @@
 -- ============================================
--- KRAKATAU SENTINEL — Tsunami Anomaly Detection
+-- GEMPA SENTINEL — Tsunami Anomaly Detection
 -- ============================================
--- Monitors ocean sensors for sudden sea level and 
--- wave height anomalies that could indicate tsunami risk.
--- 
--- Correlates ocean anomalies with volcanic activity 
--- for context on potential causation.
+-- Monitors InaTEWS DART buoys and coastal tide gauges
+-- for megathrust tsunami wave propagation.
 
--- Output table for tsunami scenarios
 CREATE TABLE tsunami_scenarios (
     `active` BOOLEAN,
     `detection_time` TIMESTAMP(3),
@@ -18,51 +14,43 @@ CREATE TABLE tsunami_scenarios (
     `severity` STRING,
     `timestamp` TIMESTAMP(3)
 ) WITH (
-    'kafka.topic' = 'volcano.tsunami_scenarios',
+    'kafka.topic' = 'gempa.tsunami_scenarios',
     'value.format' = 'json'
 );
 
--- Tsunami detection: triggers when sea level change exceeds threshold
--- Uses 1-minute tumbling windows on ocean data
 INSERT INTO tsunami_scenarios
 SELECT
     TRUE AS active,
     window_start AS detection_time,
     sensor_id,
-    max_sea_level AS wave_anomaly,
+    max_wave_height AS wave_anomaly,
     
     CASE 
-        WHEN max_sea_level > 2.0 THEN 'Anyer,Carita Beach,Labuan,Pandeglang Coast'
-        WHEN max_sea_level > 1.0 THEN 'Anyer,Carita Beach'
-        ELSE 'Nearest coastal zone'
+        WHEN max_wave_height > 10.0 THEN 'Pesisir Mentawai,Padang,Cilacap,Anyer,Palu Bay'
+        WHEN max_wave_height > 5.0 THEN 'Zona Pesisir Utama (0-10m ASL)'
+        ELSE 'Zona Waspada Pesisir'
     END AS affected_zones,
     
     CASE 
-        WHEN max_sea_level > 2.0 THEN 'Activate sirens,Evacuate zones A-D,Alert maritime,Notify emergency teams,Monitor propagation'
-        WHEN max_sea_level > 1.0 THEN 'Review evacuation plans,Alert maritime traffic,Monitor sensors'
-        ELSE 'Increase monitoring frequency,Review sensor data'
+        WHEN max_wave_height > 5.0 THEN '🚨 EVAKUASI SEGERA ke dataran tinggi (>20m),Aktifkan sirene tsunami,Hentikan seluruh navigasi laut,Mobilisasi SAR'
+        ELSE 'Waspada potensi gelombang tinggi,Jauhi pantai'
     END AS response_actions,
     
     CASE 
-        WHEN max_sea_level > 2.5 THEN 'CRITICAL'
-        WHEN max_sea_level > 1.5 THEN 'HIGH'
-        WHEN max_sea_level > 0.8 THEN 'ELEVATED'
-        ELSE 'ADVISORY'
+        WHEN max_wave_height > 8.0 THEN 'CRITICAL'
+        WHEN max_wave_height > 3.0 THEN 'HIGH'
+        ELSE 'ELEVATED'
     END AS severity,
     
     window_end AS `timestamp`
     
 FROM (
     SELECT
-        window_start,
-        window_end,
+        TUMBLE_START(`timestamp`, INTERVAL '1' MINUTE) AS window_start,
+        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
         sensor_id,
-        MAX(sea_level) AS max_sea_level,
-        MAX(wave_height) AS max_wave_height,
-        MAX(tsunami_sensor_reading) AS max_tsunami_reading
-    FROM TABLE(
-        TUMBLE(TABLE ocean_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
-    )
-    GROUP BY window_start, window_end, sensor_id
+        MAX(wave_height) AS max_wave_height
+    FROM ocean_events
+    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE), sensor_id
 )
-WHERE max_sea_level > 0.8 OR max_wave_height > 2.0 OR max_tsunami_reading > 1.0;
+WHERE max_wave_height > 1.5;

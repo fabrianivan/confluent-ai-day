@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"krakatau-sentinel/internal/models"
+	"gempa-sentinel/internal/models"
 )
 
 func TestSeismicEventJSON(t *testing.T) {

@@ -1,30 +1,30 @@
 #!/bin/bash
 # ============================================
-# KRAKATAU SENTINEL — Topic Setup Script
+# GEMPA SENTINEL — Topic Setup Script
 # ============================================
 # Creates all required Kafka topics via Confluent CLI
 # Prerequisites: confluent CLI installed and logged in
 
 set -e
 
-echo "🌋 Creating Krakatau Sentinel Kafka topics..."
+echo "🌍 Creating Gempa Sentinel Kafka topics..."
 
 # Source topics (7)
 TOPICS=(
-    "volcano.seismic"
-    "volcano.activity"
-    "volcano.ocean"
-    "volcano.weather"
-    "volcano.satellite"
-    "volcano.maritime"
-    "volcano.population"
+    "gempa.seismic"
+    "gempa.stations"
+    "gempa.tsunami"
+    "gempa.weather"
+    "gempa.satellite"
+    "gempa.infrastructure"
+    "gempa.population"
 )
 
 # Flink output topics (3)
 OUTPUT_TOPICS=(
-    "volcano.activity_index"
-    "volcano.correlated_alerts"
-    "volcano.tsunami_scenarios"
+    "gempa.intensity_index"
+    "gempa.correlated_alerts"
+    "gempa.tsunami_scenarios"
 )
 
 echo ""
@@ -45,4 +45,4 @@ echo ""
 echo "✅ All topics created!"
 echo ""
 echo "📋 Topic list:"
-confluent kafka topic list 2>/dev/null | grep "volcano\." || echo "  (run 'confluent kafka topic list' manually)"
+confluent kafka topic list 2>/dev/null | grep "gempa\." || echo "  (run 'confluent kafka topic list' manually)"
