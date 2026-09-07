@@ -18,7 +18,7 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Println("🌋 KRAKATAU SENTINEL — Real-Time Volcanic Intelligence")
+	log.Println("🌍 GEMPA SENTINEL — Real-Time Earthquake Intelligence & Megathrust Warning")
 	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	// Load configuration

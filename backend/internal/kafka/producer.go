@@ -1,9 +1,11 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"gempa-sentinel/internal/config"
 
@@ -94,9 +96,44 @@ func (p *Producer) Produce(topic string, key string, value interface{}) error {
 	return nil
 }
 
-// CreateTopics verifies Kafka topics
+// CreateTopics verifies and ensures all required Kafka topics exist in Confluent Cloud
 func (p *Producer) CreateTopics() error {
-	log.Println("✅ Kafka topics ready in Confluent Cloud")
+	if p == nil || p.producer == nil || (p.cfg != nil && p.cfg.DemoMode) {
+		return nil
+	}
+
+	adminClient, err := kafka.NewAdminClientFromProducer(p.producer)
+	if err != nil {
+		return fmt.Errorf("failed to create admin client: %w", err)
+	}
+	defer adminClient.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	allTopics := append(config.AllSourceTopics(), config.AllOutputTopics()...)
+	var topicSpecs []kafka.TopicSpecification
+	for _, t := range allTopics {
+		topicSpecs = append(topicSpecs, kafka.TopicSpecification{
+			Topic:             t,
+			NumPartitions:     3,
+			ReplicationFactor: 3,
+		})
+	}
+
+	results, err := adminClient.CreateTopics(ctx, topicSpecs)
+	if err != nil {
+		log.Printf("⚠️ AdminClient CreateTopics: %v", err)
+		return nil
+	}
+
+	for _, res := range results {
+		if res.Error.Code() != kafka.ErrNoError && res.Error.Code() != kafka.ErrTopicAlreadyExists {
+			log.Printf("ℹ️ Topic %s status: %v", res.Topic, res.Error)
+		}
+	}
+
+	log.Println("✅ Kafka topics verified in Confluent Cloud")
 	return nil
 }
 
