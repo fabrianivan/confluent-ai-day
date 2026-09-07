@@ -1,7 +1,7 @@
 # Environment & secrets
-.env
 .env*.local
 !.env.example
+
 
 # Go binaries & build artifacts
 /backend/server
