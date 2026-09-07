@@ -101,12 +101,31 @@ export interface ContributingFactor {
   significance: number;
 }
 
+export interface AgencyAction {
+  agency: string;
+  priority: string;
+  action: string;
+}
+
+export interface HazardDeepDive {
+  fault_mechanism: string;
+  estimated_coseismic_slip: string;
+  aftershock_risk: string;
+  tsunami_runup_estimate: string;
+  evacuation_window_min: number;
+}
+
 export interface AIAnalysis {
   status: string;
+  threat_summary?: string;
   observations: string[];
   assessment: string;
   recommendations: string[];
+  agency_actions?: AgencyAction[];
+  hazard_details?: HazardDeepDive;
   confidence: number;
+  latency_ms?: number;
+  model_used?: string;
   disclaimer: string;
   contributing_factors: ContributingFactor[];
   timestamp: string;

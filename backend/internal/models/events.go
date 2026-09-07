@@ -106,16 +106,50 @@ type ActivityIndex struct {
 	Timestamp         time.Time `json:"timestamp"`
 }
 
+// AgencyAction represents tactical recommendations broken down by responder agency
+type AgencyAction struct {
+	Agency   string `json:"agency"`   // BMKG, BNPB, BASARNAS, KEMENHUB
+	Priority string `json:"priority"` // IMMEDIATE, URGENT, STANDBY
+	Action   string `json:"action"`
+}
+
+// HazardDeepDive contains technical seismological assessments
+type HazardDeepDive struct {
+	FaultMechanism         string `json:"fault_mechanism"`          // e.g. Subduction Megathrust Thrust
+	EstimatedCoseismicSlip string `json:"estimated_coseismic_slip"` // e.g. 5.2 meters
+	AftershockRisk         string `json:"aftershock_risk"`         // e.g. HIGH (Probability M>6.5 in 48h: 78%)
+	TsunamiRunupEstimate   string `json:"tsunami_runup_estimate"`   // e.g. 8 - 15 meters
+	EvacuationWindowMin    int    `json:"evacuation_window_min"`    // Golden evacuation window
+}
+
 // AIAnalysis represents the AI intelligence layer output
 type AIAnalysis struct {
 	Status              string               `json:"status"`
+	ThreatSummary       string               `json:"threat_summary,omitempty"`
 	Observations        []string             `json:"observations"`
 	Assessment          string               `json:"assessment"`
 	Recommendations     []string             `json:"recommendations"`
+	AgencyActions       []AgencyAction       `json:"agency_actions,omitempty"`
+	HazardDetails       *HazardDeepDive      `json:"hazard_details,omitempty"`
 	Confidence          float64              `json:"confidence"`
+	LatencyMs           int64                `json:"latency_ms,omitempty"`
+	ModelUsed           string               `json:"model_used,omitempty"`
 	Disclaimer          string               `json:"disclaimer"`
 	ContributingFactors []ContributingFactor `json:"contributing_factors"`
 	Timestamp           time.Time            `json:"timestamp"`
+}
+
+// AIQuestionRequest represents an interactive question to Gemini Copilot
+type AIQuestionRequest struct {
+	Question string `json:"question"`
+}
+
+// AIQuestionResponse represents the reply from Gemini Copilot
+type AIQuestionResponse struct {
+	Answer    string    `json:"answer"`
+	Model     string    `json:"model"`
+	LatencyMs int64     `json:"latency_ms"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // ContributingFactor represents a single factor contributing to an alert
