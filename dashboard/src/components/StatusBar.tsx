@@ -41,7 +41,7 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
         </div>
         <div>
           <div className="status-bar__title">
-            <span>GEMPA SENTINEL</span>
+            <span>KRAKATAU SENTINEL</span>
             <span className="status-bar__version">MISSION CONTROL v3.0</span>
           </div>
           <div className="status-bar__subtitle">

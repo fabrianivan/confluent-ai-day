@@ -55,7 +55,7 @@ func NewConsumer(cfg *config.Config, callbacks ConsumerCallbacks) (*Consumer, er
 		return nil, fmt.Errorf("failed to subscribe to topics: %w", err)
 	}
 
-	log.Printf("✅ Kafka consumer subscribed to: %v", topics)
+	log.Printf("[INFO] Kafka consumer subscribed to: %v", topics)
 
 	return &Consumer{
 		consumer:   c,
@@ -68,12 +68,12 @@ func NewConsumer(cfg *config.Config, callbacks ConsumerCallbacks) (*Consumer, er
 
 // Start begins consuming messages in a loop
 func (c *Consumer) Start(ctx context.Context) {
-	log.Println("🔄 Starting Kafka consumer loop...")
+	log.Println("[INFO] Starting Kafka consumer loop...")
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("🛑 Consumer context cancelled")
+			log.Println("[INFO] Consumer context cancelled")
 			return
 		default:
 			msg, err := c.consumer.ReadMessage(time.Second)
@@ -82,7 +82,7 @@ func (c *Consumer) Start(ctx context.Context) {
 				if err.(ckafka.Error).IsTimeout() {
 					continue
 				}
-				log.Printf("❌ Consumer error: %v", err)
+				log.Printf("[ERROR] Consumer error: %v", err)
 				continue
 			}
 
@@ -99,7 +99,7 @@ func (c *Consumer) processMessage(msg *ckafka.Message) {
 	case config.TopicNames.ActivityIndex:
 		var idx models.ActivityIndex
 		if err := json.Unmarshal(msg.Value, &idx); err != nil {
-			log.Printf("❌ Failed to unmarshal activity index: %v", err)
+			log.Printf("[ERROR] Failed to unmarshal activity index: %v", err)
 			return
 		}
 		if c.onActivity != nil {
@@ -109,7 +109,7 @@ func (c *Consumer) processMessage(msg *ckafka.Message) {
 	case config.TopicNames.CorrelatedAlerts:
 		var alert models.CorrelatedAlert
 		if err := json.Unmarshal(msg.Value, &alert); err != nil {
-			log.Printf("❌ Failed to unmarshal correlated alert: %v", err)
+			log.Printf("[ERROR] Failed to unmarshal correlated alert: %v", err)
 			return
 		}
 		if c.onAlert != nil {
@@ -119,7 +119,7 @@ func (c *Consumer) processMessage(msg *ckafka.Message) {
 	case config.TopicNames.TsunamiScenarios:
 		var ts models.TsunamiScenario
 		if err := json.Unmarshal(msg.Value, &ts); err != nil {
-			log.Printf("❌ Failed to unmarshal tsunami scenario: %v", err)
+			log.Printf("[ERROR] Failed to unmarshal tsunami scenario: %v", err)
 			return
 		}
 		if c.onTsunami != nil {
@@ -131,5 +131,5 @@ func (c *Consumer) processMessage(msg *ckafka.Message) {
 // Close shuts down the consumer
 func (c *Consumer) Close() {
 	c.consumer.Close()
-	log.Println("🔒 Kafka consumer closed")
+	log.Println("[INFO] Kafka consumer closed")
 }

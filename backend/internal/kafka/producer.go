@@ -21,7 +21,7 @@ type Producer struct {
 // NewProducer creates a new Kafka producer for Confluent Cloud
 func NewProducer(cfg *config.Config) (*Producer, error) {
 	if cfg.DemoMode {
-		log.Println("ℹ️  Running in DEMO MODE — Kafka producer simulated (direct SSE broadcast)")
+		log.Println("[INFO] Running in DEMO MODE - Kafka producer simulated (direct SSE broadcast)")
 		return &Producer{cfg: cfg}, nil
 	}
 
@@ -48,7 +48,7 @@ func NewProducer(cfg *config.Config) (*Producer, error) {
 	// Start delivery report handler
 	go prod.handleDeliveryReports()
 
-	log.Println("✅ Kafka producer connected to Confluent Cloud")
+	log.Println("[INFO] Kafka producer connected to Confluent Cloud")
 	return prod, nil
 }
 
@@ -58,7 +58,7 @@ func (p *Producer) handleDeliveryReports() {
 		switch ev := e.(type) {
 		case *kafka.Message:
 			if ev.TopicPartition.Error != nil {
-				log.Printf("❌ Delivery failed to %s: %v", *ev.TopicPartition.Topic, ev.TopicPartition.Error)
+				log.Printf("[ERROR] Delivery failed to %s: %v", *ev.TopicPartition.Topic, ev.TopicPartition.Error)
 			}
 		}
 	}
@@ -123,17 +123,17 @@ func (p *Producer) CreateTopics() error {
 
 	results, err := adminClient.CreateTopics(ctx, topicSpecs)
 	if err != nil {
-		log.Printf("⚠️ AdminClient CreateTopics: %v", err)
+		log.Printf("[WARN] AdminClient CreateTopics: %v", err)
 		return nil
 	}
 
 	for _, res := range results {
 		if res.Error.Code() != kafka.ErrNoError && res.Error.Code() != kafka.ErrTopicAlreadyExists {
-			log.Printf("ℹ️ Topic %s status: %v", res.Topic, res.Error)
+			log.Printf("[INFO] Topic %s status: %v", res.Topic, res.Error)
 		}
 	}
 
-	log.Println("✅ Kafka topics verified in Confluent Cloud")
+	log.Println("[INFO] Kafka topics verified in Confluent Cloud")
 	return nil
 }
 
@@ -149,6 +149,6 @@ func (p *Producer) Close() {
 	if p != nil && p.producer != nil {
 		p.producer.Flush(10000)
 		p.producer.Close()
-		log.Println("🔒 Kafka producer closed")
+		log.Println("[INFO] Kafka producer closed")
 	}
 }

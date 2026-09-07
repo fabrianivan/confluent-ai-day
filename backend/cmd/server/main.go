@@ -18,26 +18,26 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Println("🌍 GEMPA SENTINEL — Real-Time Earthquake Intelligence & Megathrust Warning")
-	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Println("[INFO] KRAKATAU SENTINEL - Real-Time Disaster Intelligence & Early Warning")
+	log.Println("------------------------------------------------------------")
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("❌ Configuration error: %v", err)
+		log.Fatalf("[FATAL] Configuration error: %v", err)
 	}
-	log.Println("✅ Configuration loaded")
+	log.Println("[INFO] Configuration loaded")
 
 	// Initialize Kafka producer
 	producer, err := kafka.NewProducer(cfg)
 	if err != nil {
-		log.Fatalf("❌ Failed to create Kafka producer: %v", err)
+		log.Fatalf("[FATAL] Failed to create Kafka producer: %v", err)
 	}
 	defer producer.Close()
 
 	// Create topics
 	if err := producer.CreateTopics(); err != nil {
-		log.Printf("⚠️  Topic creation warning: %v", err)
+		log.Printf("[WARN] Topic creation warning: %v", err)
 	}
 
 	// Initialize SSE Hub
@@ -46,7 +46,7 @@ func main() {
 	// Initialize Gemini AI
 	analyzer, err := ai.NewGeminiAnalyzer(cfg.GeminiAPIKey)
 	if err != nil {
-		log.Fatalf("❌ Failed to create Gemini analyzer: %v", err)
+		log.Fatalf("[FATAL] Failed to create Gemini analyzer: %v", err)
 	}
 
 	// Initialize Simulator
@@ -72,7 +72,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Printf("⚠️  Kafka consumer warning (Flink output topics may not exist yet): %v", err)
+		log.Printf("[WARN] Kafka consumer warning (Flink output topics may not exist yet): %v", err)
 	}
 
 	// Create a context that cancels on interrupt
@@ -96,14 +96,14 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
-		log.Println("\n🛑 Shutting down Krakatau Sentinel...")
+		log.Println("\n[INFO] Shutting down Krakatau Sentinel...")
 		cancel()
 		os.Exit(0)
 	}()
 
 	// Start the API server (blocking)
-	log.Printf("🚀 Krakatau Sentinel ready — API on :%s", cfg.ServerPort)
+	log.Printf("[INFO] Krakatau Sentinel ready - API on :%s", cfg.ServerPort)
 	if err := server.Start(); err != nil {
-		log.Fatalf("❌ Server error: %v", err)
+		log.Fatalf("[FATAL] Server error: %v", err)
 	}
 }

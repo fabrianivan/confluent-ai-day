@@ -87,7 +87,7 @@ func NewServer(h *hub.SSEHub, sim Simulator, analyzer *ai.GeminiAnalyzer, port, 
 // Start begins listening for HTTP connections
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%s", s.port)
-	log.Printf("🌐 API server starting on %s", addr)
+	log.Printf("[INFO] API server starting on %s", addr)
 	return s.router.Run(addr)
 }
 
@@ -123,11 +123,11 @@ func (s *Server) TriggerAIAnalysis(activityIndex models.ActivityIndex) {
 
 		analysis, err := s.analyzer.Analyze(ctx, activityIndex, events)
 		if err != nil {
-			log.Printf("❌ AI analysis failed: %v", err)
+			log.Printf("[ERROR] AI analysis failed: %v", err)
 			return
 		}
 
-		log.Printf("🤖 AI Analysis: %s (confidence: %.2f)", analysis.Status, analysis.Confidence)
+		log.Printf("[INFO] AI Analysis: %s (confidence: %.2f)", analysis.Status, analysis.Confidence)
 		s.hub.BroadcastAll("ai_analysis", analysis)
 	}()
 }
@@ -177,7 +177,7 @@ func (s *Server) streamSSE(c *gin.Context, eventType string) {
 // --- REST Handlers ---
 
 func (s *Server) handleVolcanicEscalation(c *gin.Context) {
-	log.Println("🔥 API: Volcanic escalation triggered")
+	log.Println("[INFO] API: Escalation triggered")
 	s.sim.TriggerVolcanicEscalation()
 
 	// Trigger AI analysis at key escalation points
@@ -211,12 +211,12 @@ func (s *Server) handleVolcanicEscalation(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"message": "Volcanic escalation scenario triggered",
+		"message": "Escalation scenario triggered",
 	})
 }
 
 func (s *Server) handleTsunamiScenario(c *gin.Context) {
-	log.Println("🌊 API: Tsunami scenario triggered")
+	log.Println("[INFO] API: Tsunami scenario triggered")
 	s.sim.TriggerTsunami()
 
 	c.JSON(http.StatusOK, gin.H{
@@ -226,7 +226,7 @@ func (s *Server) handleTsunamiScenario(c *gin.Context) {
 }
 
 func (s *Server) handleReal2018Disaster(c *gin.Context) {
-	log.Println("🚨 API: Real 2018 Krakatau disaster replay triggered")
+	log.Println("[INFO] API: Real disaster replay triggered")
 	s.sim.TriggerReal2018Disaster()
 
 	go func() {
@@ -248,12 +248,12 @@ func (s *Server) handleReal2018Disaster(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"message": "Historical 2018 Real Flank Collapse & Tsunami replay initiated",
+		"message": "Historical Real Flank Collapse & Tsunami replay initiated",
 	})
 }
 
 func (s *Server) handleReset(c *gin.Context) {
-	log.Println("↺ API: System reset")
+	log.Println("[INFO] API: System reset")
 	s.sim.Reset()
 
 	c.JSON(http.StatusOK, gin.H{

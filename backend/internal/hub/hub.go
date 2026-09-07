@@ -31,7 +31,7 @@ func (h *SSEHub) Subscribe(eventType string) chan string {
 	}
 	h.clients[eventType][ch] = true
 
-	log.Printf("📡 SSE client subscribed to: %s (total: %d)", eventType, len(h.clients[eventType]))
+	log.Printf("[INFO] SSE client subscribed to: %s (total: %d)", eventType, len(h.clients[eventType]))
 	return ch
 }
 
@@ -43,7 +43,7 @@ func (h *SSEHub) Unsubscribe(eventType string, ch chan string) {
 	if clients, ok := h.clients[eventType]; ok {
 		delete(clients, ch)
 		close(ch)
-		log.Printf("📡 SSE client unsubscribed from: %s (remaining: %d)", eventType, len(clients))
+		log.Printf("[INFO] SSE client unsubscribed from: %s (remaining: %d)", eventType, len(clients))
 	}
 }
 
@@ -54,7 +54,7 @@ func (h *SSEHub) Broadcast(eventType string, data interface{}) {
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		log.Printf("❌ SSE marshal error: %v", err)
+		log.Printf("[ERROR] SSE marshal error: %v", err)
 		return
 	}
 

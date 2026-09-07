@@ -1,6 +1,6 @@
-# 🌍 GEMPA SENTINEL
+# KRAKATAU SENTINEL
 
-**Real-Time AI for Earthquake Intelligence & Megathrust Early Warning**
+**Real-Time AI for Disaster, Seismic & Megathrust Intelligence with Early Warning**
 
 A streaming intelligence system that continuously monitors seismic networks, InaTEWS tsunami buoys, geodetic InSAR satellite observations, and meteorological feeds across Indonesia's major subduction zones through Confluent Cloud. Apache Flink SQL correlates events in real time to compute a National Seismic Intensity Index (MMI) and detect tsunami wave anomalies, while Google Gemini AI provides explainable risk assessments and decision-support recommendations for disaster response authorities (BMKG, BNPB, BASARNAS).
 

@@ -93,10 +93,10 @@ var scenarios = []MegathrustScenario{
 			"Zona D — Lampung Selatan / Kalianda (Gelombang: 6.1m, ETA: 28 menit)",
 		},
 		TsunamiActions: []string{
-			"🚨 EVAKUASI SEGERA ke dataran tinggi (>30m)",
-			"🚨 Aktifkan sirene peringatan tsunami seluruh pesisir Banten & Lampung",
-			"🚨 Hentikan seluruh aktivitas penyeberangan Merak-Bakauheni",
-			"🚨 Mobilisasi BASARNAS & BNPB forward response unit",
+			"[ACTION] EVAKUASI SEGERA ke dataran tinggi (>30m)",
+			"[ACTION] Aktifkan sirene peringatan tsunami seluruh pesisir Banten & Lampung",
+			"[ACTION] Hentikan seluruh aktivitas penyeberangan Merak-Bakauheni",
+			"[ACTION] Mobilisasi BASARNAS & BNPB forward response unit",
 		},
 	},
 	{
@@ -116,10 +116,10 @@ var scenarios = []MegathrustScenario{
 			"Zona D — Gunung Kidul (Yogyakarta) (Gelombang: 11.6m, ETA: 28 menit)",
 		},
 		TsunamiActions: []string{
-			"🚨 EVAKUASI MASSAL SEGERA — zona pesisir selatan Jawa",
-			"🚨 Aktifkan EWS (Early Warning System) BMKG seluruh Jawa",
-			"🚨 Tutup seluruh pelabuhan pesisir selatan",
-			"🚨 Deploy TNI & Polri untuk evakuasi Cilacap-Pangandaran-Pacitan corridor",
+			"[ACTION] EVAKUASI MASSAL SEGERA — zona pesisir selatan Jawa",
+			"[ACTION] Aktifkan EWS (Early Warning System) BMKG seluruh Jawa",
+			"[ACTION] Tutup seluruh pelabuhan pesisir selatan",
+			"[ACTION] Deploy TNI & Polri untuk evakuasi Cilacap-Pangandaran-Pacitan corridor",
 		},
 	},
 	{
@@ -139,10 +139,10 @@ var scenarios = []MegathrustScenario{
 			"Zona D — Bengkulu Coast (Gelombang: 12.6m, ETA: 35 menit)",
 		},
 		TsunamiActions: []string{
-			"🚨 TSUNAMI MERUSAK — EVAKUASI TOTAL Padang & Mentawai",
-			"🚨 Maximum alert: Gelombang 20m+ menuju Padang",
-			"🚨 Aktifkan semua shelter tsunami vertikal di Padang",
-			"🚨 Evakuasi udara penduduk Mentawai oleh TNI AU",
+			"[ACTION] TSUNAMI MERUSAK — EVAKUASI TOTAL Padang & Mentawai",
+			"[ACTION] Maximum alert: Gelombang 20m+ menuju Padang",
+			"[ACTION] Aktifkan semua shelter tsunami vertikal di Padang",
+			"[ACTION] Evakuasi udara penduduk Mentawai oleh TNI AU",
 		},
 	},
 	{
@@ -162,10 +162,10 @@ var scenarios = []MegathrustScenario{
 			"Zona D — Pantai Barat Donggala (Gelombang: 5.4m, ETA: 8 menit)",
 		},
 		TsunamiActions: []string{
-			"🚨 TSUNAMI LOKAL — waktu evakuasi sangat singkat (<5 menit)",
-			"🚨 Alert: Liquefaction terdeteksi di Petobo & Balaroa",
-			"🚨 Evakuasi vertikal immediate — Teluk Palu",
-			"🚨 Koordinasi SAR terpadu Palu-Donggala-Sigi",
+			"[ACTION] TSUNAMI LOKAL — waktu evakuasi sangat singkat (<5 menit)",
+			"[ACTION] Alert: Liquefaction terdeteksi di Petobo & Balaroa",
+			"[ACTION] Evakuasi vertikal immediate — Teluk Palu",
+			"[ACTION] Koordinasi SAR terpadu Palu-Donggala-Sigi",
 		},
 	},
 }
@@ -209,7 +209,7 @@ func (s *Simulator) SetAnalysisTrigger(fn func(models.ActivityIndex)) {
 
 // Start begins generating events and starts autonomous megathrust lifecycle
 func (s *Simulator) Start(ctx context.Context) {
-	log.Println("🌍 GEMPA SENTINEL — Event simulator started — running autonomous megathrust lifecycle")
+	log.Println("[INFO] KRAKATAU SENTINEL - Event simulator started - running autonomous megathrust lifecycle")
 
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -233,7 +233,7 @@ func (s *Simulator) Reset() {
 	s.trendDirection = "STABLE"
 	s.mu.Unlock()
 
-	log.Println("↺ Simulator reset to normal mode")
+	log.Println("[INFO] Simulator reset to normal mode")
 
 	s.hub.BroadcastAll("tsunami", models.TsunamiScenario{Active: false, Timestamp: time.Now()})
 	s.hub.BroadcastAll("ai_analysis", models.AIAnalysis{
@@ -264,7 +264,7 @@ func (s *Simulator) TriggerMegathrustScenario(id string) {
 	s.currentActivity = 85.0
 	s.trendDirection = "SURGING"
 	s.mu.Unlock()
-	log.Printf("🚨 Manual trigger: Megathrust scenario %s", id)
+	log.Printf("[INFO] Manual trigger: Megathrust scenario %s", id)
 }
 
 // TriggerVolcanicEscalation triggers megathrust scenario (backward compatibility)
@@ -280,7 +280,7 @@ func (s *Simulator) TriggerTsunami() {
 	sc := s.currentScenario
 	s.mu.Unlock()
 
-	log.Println("🌊 Tsunami scenario triggered")
+	log.Println("[INFO] Tsunami scenario triggered")
 	zones := []string{"Pesisir Banten", "Pesisir Lampung"}
 	actions := []string{"Evakuasi segera ke tempat tinggi"}
 	maxH := 8.5
@@ -408,7 +408,7 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 		s.currentScenario = &sc
 		s.mu.Unlock()
 
-		log.Printf("🌍 === STARTING SCENARIO: %s (M%.1f) ===", sc.Name, sc.Magnitude)
+		log.Printf("[INFO] === STARTING SCENARIO: %s (M%.1f) ===", sc.Name, sc.Magnitude)
 
 		phases := []phase{
 			{
@@ -583,7 +583,7 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 		s.currentScenarioIdx = (s.currentScenarioIdx + 1) % len(scenarios)
 		s.mu.Unlock()
 
-		log.Printf("🌍 === SCENARIO %s COMPLETE — cycling to next ===", sc.Name)
+		log.Printf("[INFO] === SCENARIO %s COMPLETE - cycling to next ===", sc.Name)
 	}
 }
 

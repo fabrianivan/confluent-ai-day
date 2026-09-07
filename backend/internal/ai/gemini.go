@@ -27,7 +27,7 @@ func NewGeminiAnalyzer(apiKey string) (*GeminiAnalyzer, error) {
 	}
 
 	if apiKey == "" || apiKey == "your-gemini-api-key" || apiKey == "demo" {
-		log.Println("ℹ️  Gemini API key not set — using internal heuristic analysis fallback")
+		log.Println("[INFO] Gemini API key not set - using internal heuristic analysis fallback")
 		return &GeminiAnalyzer{
 			client: nil,
 			model:  "gemini-2.5-flash",
@@ -39,21 +39,21 @@ func NewGeminiAnalyzer(apiKey string) (*GeminiAnalyzer, error) {
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		log.Printf("⚠️  Failed to connect to Gemini API: %v (falling back to heuristic analysis)", err)
+		log.Printf("[WARN] Failed to connect to Gemini API: %v (falling back to heuristic analysis)", err)
 		return &GeminiAnalyzer{
 			client: nil,
 			model:  "gemini-flash-latest",
 		}, nil
 	}
 
-	log.Println("🤖 Gemini AI earthquake analyzer initialized")
+	log.Println("[INFO] Gemini AI analyzer initialized")
 	return &GeminiAnalyzer{
 		client: client,
 		model:  "gemini-flash-latest",
 	}, nil
 }
 
-const systemPrompt = `You are Gempa Sentinel's earthquake intelligence analysis engine. You analyze stream-derived seismic, tsunami, station network, and geological fault indicators across Indonesia's subduction zones and megathrust segments.
+const systemPrompt = `You are Krakatau Sentinel's intelligence analysis engine. You analyze stream-derived seismic, tsunami, station network, and geological fault indicators across Indonesia's subduction zones and megathrust segments.
 
 Your role is to:
 1. Assess seismic hazard magnitude, MMI intensity, and fault rupture dynamics
@@ -106,7 +106,7 @@ func (g *GeminiAnalyzer) Analyze(ctx context.Context, activityIndex models.Activ
 		config,
 	)
 	if err != nil {
-		log.Printf("❌ Gemini API error: %v", err)
+		log.Printf("[ERROR] Gemini API error: %v", err)
 		return g.fallbackAnalysis(activityIndex), nil
 	}
 
@@ -118,7 +118,7 @@ func (g *GeminiAnalyzer) Analyze(ctx context.Context, activityIndex models.Activ
 
 	var analysis models.AIAnalysis
 	if err := json.Unmarshal([]byte(responseText), &analysis); err != nil {
-		log.Printf("⚠️ Failed to parse Gemini response, using fallback: %v", err)
+		log.Printf("[WARN] Failed to parse Gemini response, using fallback: %v", err)
 		return g.fallbackAnalysis(activityIndex), nil
 	}
 
