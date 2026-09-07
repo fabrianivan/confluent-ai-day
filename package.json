@@ -1,0 +1,24 @@
+{
+  "name": "krakatau-sentinel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Krakatau Sentinel — Real-Time Volcanic Intelligence & Emergency Response",
+  "scripts": {
+    "dev": "node scripts/start-all.js",
+    "dev:all": "node scripts/start-all.js",
+    "dev:frontend": "cd dashboard && npm run dev",
+    "dev:backend": "cd backend && go run cmd/server/main.go",
+    "build": "cd dashboard && npm run build",
+    "start": "node scripts/start-all.js",
+    "test:backend": "cd backend && go test -v ./...",
+    "lint": "cd dashboard && npm run lint"
+  },
+  "keywords": [
+    "confluent",
+    "kafka",
+    "flink",
+    "gemini",
+    "nextjs",
+    "volcanic-intelligence"
+  ]
+}
