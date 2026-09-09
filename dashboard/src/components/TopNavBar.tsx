@@ -3,16 +3,12 @@
 import { useState, useEffect } from 'react';
 
 interface TopNavBarProps {
-  connected: boolean;
-  alertCount: number;
-  riskLevel: string;
+  connected?: boolean;
+  alertCount?: number;
+  riskLevel?: string;
 }
 
-export default function TopNavBar({
-  connected,
-  alertCount,
-  riskLevel,
-}: TopNavBarProps) {
+export default function TopNavBar({}: TopNavBarProps) {
   const [timeStr, setTimeStr] = useState({ utc: '', wib: '', wita: '', wit: '' });
 
   useEffect(() => {
@@ -51,8 +47,6 @@ export default function TopNavBar({
     return () => clearInterval(interval);
   }, []);
 
-  const isAlert = alertCount > 0 || riskLevel === 'CRITICAL';
-
   return (
     <header className="dash-topbar">
       {/* Brand & Platform Identity */}
@@ -84,12 +78,6 @@ export default function TopNavBar({
           <span className="dash-clock__sub">{timeStr.wit}</span>
           <span className="dash-clock__sep">|</span>
           <span className="dash-clock__utc">{timeStr.utc || '09:00:00 UTC'}</span>
-        </div>
-
-        {/* Threat Level Badge */}
-        <div className={`dash-threat-badge ${isAlert ? 'dash-threat-badge--alert' : 'dash-threat-badge--nominal'}`}>
-          <span className="dash-threat-badge__icon">{isAlert ? '🚨' : '🛡️'}</span>
-          <span>{isAlert ? `ALERT (${alertCount})` : 'NORMAL'}</span>
         </div>
       </div>
     </header>

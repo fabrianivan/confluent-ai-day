@@ -3,17 +3,14 @@
 import { useState, useEffect } from 'react';
 
 interface StatusBarProps {
-  connected: boolean;
-  alertCount: number;
-  riskLevel: string;
+  connected?: boolean;
+  alertCount?: number;
+  riskLevel?: string;
   dashboardMode: 'REAL' | 'SIMULASI';
   onModeChange: (mode: 'REAL' | 'SIMULASI') => void;
 }
 
 export default function StatusBar({
-  connected,
-  alertCount,
-  riskLevel,
   dashboardMode,
   onModeChange,
 }: StatusBarProps) {
@@ -54,8 +51,6 @@ export default function StatusBar({
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const isAlert = alertCount > 0 || riskLevel === 'CRITICAL';
 
   return (
     <header className="status-bar">
@@ -119,25 +114,6 @@ export default function StatusBar({
         <div className="status-bar__cluster-badge">
           <span>☁️</span>
           <span>Confluent Cloud (us-east-2)</span>
-        </div>
-
-        {/* Threat Level Badge */}
-        <div
-          className={`status-bar__alerts ${
-            isAlert ? 'status-bar__alerts--active' : 'status-bar__alerts--none'
-          }`}
-        >
-          <span>{isAlert ? `🚨 ${alertCount || 1} ALERT` : '🛡️ NORMAL'}</span>
-        </div>
-
-        {/* SSE Streaming Indicator */}
-        <div className="status-bar__live">
-          <div
-            className={`status-bar__live-dot ${
-              !connected ? 'status-bar__live-dot--disconnected' : ''
-            }`}
-          />
-          <span>{connected ? 'STREAM LIVE' : 'CONNECTING'}</span>
         </div>
       </div>
     </header>
