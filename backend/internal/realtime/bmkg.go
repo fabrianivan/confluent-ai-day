@@ -77,9 +77,6 @@ func (c *BMKGClient) FetchLatestGempa() (*models.SeismicEvent, *BMKGGempaDetail,
 	}
 
 	evt, _ := convertBMKGToSeismicEvent(detail)
-	if evt == nil {
-		return nil, nil, nil
-	}
 	return evt, &detail, nil
 }
 
@@ -133,12 +130,13 @@ func convertBMKGToSeismicEvent(g BMKGGempaDetail) (*models.SeismicEvent, string)
 		return nil, g.Potensi
 	}
 
-	// Parse depth e.g. "10 km"
-	depthStr := strings.TrimSuffix(strings.TrimSpace(g.Kedalaman), "km")
-	depthStr = strings.TrimSpace(depthStr)
-	depth, err := strconv.ParseFloat(depthStr, 64)
-	if err != nil {
-		return nil, g.Potensi
+	// Parse depth e.g. "10 km", "10 Km", "10KM", " 25 km "
+	rawDepth := strings.ToLower(strings.TrimSpace(g.Kedalaman))
+	rawDepth = strings.ReplaceAll(rawDepth, "km", "")
+	rawDepth = strings.TrimSpace(rawDepth)
+	depth, err := strconv.ParseFloat(rawDepth, 64)
+	if err != nil || depth <= 0 {
+		depth = 10.0 // Default crustal depth
 	}
 
 	// Parse coordinates e.g. "-8.08,120.56"

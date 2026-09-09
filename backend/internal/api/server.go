@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -120,8 +121,21 @@ func NewServer(h *hub.SSEHub, sim Simulator, pm *ai.ProviderManager, ag *agent.S
 // Start begins listening for HTTP connections
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%s", s.port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Printf("[WARN] Port :%s busy or unavailable (%v), trying fallback port :8081...", s.port, err)
+		fallbackAddr := ":8081"
+		lnFallback, errFallback := net.Listen("tcp", fallbackAddr)
+		if errFallback == nil {
+			log.Printf("[INFO] API server starting on fallback %s", fallbackAddr)
+			s.port = "8081"
+			return http.Serve(lnFallback, s.router)
+		}
+		return fmt.Errorf("failed to bind port %s and fallback 8081: %w", s.port, err)
+	}
+
 	log.Printf("[INFO] API server starting on %s", addr)
-	return s.router.Run(addr)
+	return http.Serve(ln, s.router)
 }
 
 // TrackEvent adds an event description to the recent events list (for AI context)

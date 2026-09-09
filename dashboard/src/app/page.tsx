@@ -47,7 +47,94 @@ const MapComponent = dynamic(() => import('@/components/Map'), {
   ),
 });
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE || '';
+
+const INITIAL_QUAKES: RealtimeEarthquakesData = {
+  latest_bmkg: {
+    Tanggal: '09 Sep 2026',
+    Jam: '13:21:30 WIB',
+    DateTime: '2026-09-09T06:21:30+00:00',
+    Coordinates: '-6.92,105.49',
+    Lintang: '6.92 LS',
+    Bujur: '105.49 BT',
+    Magnitude: '3.8',
+    Kedalaman: '25 km',
+    Wilayah: 'Pusat gempa berada di laut 31 km selatan Sumur',
+    Potensi: 'Gempa ini dirasakan untuk diteruskan pada masyarakat',
+    Dirasakan: 'II Sumur',
+    Shakemap: '20260909132130.mmi.jpg',
+  },
+  recent_bmkg: [
+    {
+      type: 'SEISMIC',
+      magnitude: 5.2,
+      depth: 10,
+      frequency: 3.6,
+      count: 1,
+      latitude: -8.08,
+      longitude: 120.56,
+      mmi: 7,
+      pga: 0.66,
+      fault_zone: '60 km TimurLaut RUTENG-MANGGARAI-NTT',
+      timestamp: '2026-09-08T04:40:29Z',
+    },
+    {
+      type: 'SEISMIC',
+      magnitude: 5.4,
+      depth: 10,
+      frequency: 3.7,
+      count: 1,
+      latitude: -8.42,
+      longitude: 109.02,
+      mmi: 7,
+      pga: 0.68,
+      fault_zone: '77 km Tenggara CILACAP-JATENG',
+      timestamp: '2026-09-04T05:04:59Z',
+    },
+    {
+      type: 'SEISMIC',
+      magnitude: 5.8,
+      depth: 10,
+      frequency: 3.9,
+      count: 1,
+      latitude: -7.72,
+      longitude: 104.47,
+      mmi: 8,
+      pga: 0.74,
+      fault_zone: '170 km BaratDaya SUMUR-BANTEN',
+      timestamp: '2026-08-21T17:41:43Z',
+    },
+  ],
+  recent_usgs: [
+    {
+      type: 'SEISMIC',
+      magnitude: 5.0,
+      depth: 10,
+      frequency: 3.5,
+      count: 1,
+      latitude: 4.0172,
+      longitude: 125.3233,
+      mmi: 7,
+      pga: 0.63,
+      fault_zone: '154 km S of Sarangani, Philippines',
+      timestamp: '2026-09-09T07:07:00Z',
+    },
+    {
+      type: 'SEISMIC',
+      magnitude: 4.5,
+      depth: 39.5,
+      frequency: 3.25,
+      count: 1,
+      latitude: -4.9167,
+      longitude: 102.8454,
+      mmi: 6,
+      pga: 0.45,
+      fault_zone: '108 km SSW of Pagar Alam, Indonesia',
+      timestamp: '2026-09-09T00:23:00Z',
+    },
+  ],
+  timestamp: new Date().toISOString(),
+};
 
 const INITIAL_EVENTS: LiveEvent[] = [
   {
@@ -163,7 +250,7 @@ export default function Home() {
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [tsunami, setTsunami] = useState<TsunamiScenario | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>(INITIAL_EVENTS);
-  const [realQuakes, setRealQuakes] = useState<RealtimeEarthquakesData | null>(null);
+  const [realQuakes, setRealQuakes] = useState<RealtimeEarthquakesData | null>(INITIAL_QUAKES);
   const [volcanoes, setVolcanoes] = useState<VolcanoEruption[]>([]);
   const [selectedVolcano, setSelectedVolcano] = useState<string | null>('BMKG_REGIONAL');
   const [inspectingSeismogram, setInspectingSeismogram] = useState<VolcanoEruption | null>(null);
@@ -177,15 +264,30 @@ export default function Home() {
 
   // Fetch real BMKG earthquakes & system status
   const fetchRealQuakes = useCallback(() => {
-    fetch(`${API_BASE}/api/realtime/earthquakes`)
+    const targetUrl = API_BASE ? `${API_BASE}/api/realtime/earthquakes` : '/api/realtime/earthquakes';
+    fetch(targetUrl)
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch real quakes');
+        if (!res.ok) throw new Error(`Failed to fetch real quakes: ${res.status}`);
         return res.json();
       })
       .then((data: RealtimeEarthquakesData) => {
-        if (data) setRealQuakes(data);
+        if (data && (data.latest_bmkg || (data.recent_bmkg && data.recent_bmkg.length > 0))) {
+          setRealQuakes(data);
+        }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('Primary earthquake fetch failed, falling back to local /api/realtime/earthquakes:', err);
+        if (API_BASE) {
+          fetch('/api/realtime/earthquakes')
+            .then((r) => (r.ok ? r.json() : null))
+            .then((localData: RealtimeEarthquakesData | null) => {
+              if (localData && (localData.latest_bmkg || (localData.recent_bmkg && localData.recent_bmkg.length > 0))) {
+                setRealQuakes(localData);
+              }
+            })
+            .catch(() => {});
+        }
+      });
   }, []);
 
   const fetchVolcanoes = useCallback(() => {
@@ -409,6 +511,7 @@ export default function Home() {
               <div className="sidebar">
                 <LatestQuakeCard
                   quake={realQuakes?.latest_bmkg ?? null}
+                  realQuakes={realQuakes}
                   onFocusMap={(lat, lon) => setFocusCoords({ lat, lon })}
                 />
 
@@ -644,6 +747,7 @@ export default function Home() {
               <div className="sidebar">
                 <LatestQuakeCard
                   quake={realQuakes?.latest_bmkg ?? null}
+                  realQuakes={realQuakes}
                   onFocusMap={(lat, lon) => setFocusCoords({ lat, lon })}
                 />
 

@@ -387,12 +387,38 @@ export default function Map({
 
     // Plot BMKG recent earthquakes
     if (realQuakes?.recent_bmkg) {
-      realQuakes.recent_bmkg.forEach((q) => {
-        if (!q.latitude || !q.longitude) return;
-        const color = q.magnitude >= 6.0 ? '#ef4444' : q.magnitude >= 5.0 ? '#f59e0b' : '#34d399';
-        const radius = Math.max(7, q.magnitude * 2.8);
+      realQuakes.recent_bmkg.forEach((item) => {
+        const q = item as unknown as Record<string, unknown>;
+        let lat = typeof q.latitude === 'number' ? q.latitude : undefined;
+        let lon = typeof q.longitude === 'number' ? q.longitude : undefined;
+        if (lat === undefined && typeof q.Coordinates === 'string') {
+          const parts = q.Coordinates.split(',');
+          if (parts.length === 2) {
+            lat = parseFloat(parts[0].trim());
+            lon = parseFloat(parts[1].trim());
+          }
+        }
+        if (lat === undefined && typeof q.Lintang === 'string') {
+          lat = parseFloat(q.Lintang);
+          if (q.Lintang.includes('LS')) lat = -Math.abs(lat);
+        }
+        if (lon === undefined && typeof q.Bujur === 'string') {
+          lon = parseFloat(q.Bujur);
+          if (q.Bujur.includes('BB')) lon = -Math.abs(lon);
+        }
+        if (lat === undefined || lon === undefined || isNaN(lat) || isNaN(lon)) return;
 
-        const circle = L.circleMarker([q.latitude, q.longitude], {
+        const rawMag = typeof q.magnitude === 'number' ? q.magnitude : parseFloat(String(q.Magnitude || ''));
+        const magnitude = isNaN(rawMag) ? 5.0 : rawMag;
+        const rawDepth = typeof q.depth === 'number' ? q.depth : parseFloat(String(q.Kedalaman || '').replace(/km/i, '').trim());
+        const depth = isNaN(rawDepth) ? 10 : rawDepth;
+        const faultZone = String(q.fault_zone || q.Wilayah || 'Wilayah Indonesia');
+        const timestamp = q.timestamp ? String(q.timestamp) : (q.DateTime ? String(q.DateTime) : new Date().toISOString());
+
+        const color = magnitude >= 6.0 ? '#ef4444' : magnitude >= 5.0 ? '#f59e0b' : '#34d399';
+        const radius = Math.max(7, magnitude * 2.8);
+
+        const circle = L.circleMarker([lat, lon], {
           radius,
           color,
           fillColor: color,
@@ -404,14 +430,14 @@ export default function Map({
           <div style="font-family: Inter, sans-serif; padding: 8px; color: #0f172a; min-width: 200px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
               <span style="background: ${color}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 12px;">
-                M${q.magnitude.toFixed(1)}
+                M${magnitude.toFixed(1)}
               </span>
               <span style="font-size: 10px; color: #64748b; font-weight: 700;">BMKG TEWS</span>
             </div>
-            <strong style="font-size: 12px; color: #0f172a;">${q.fault_zone || 'Wilayah Indonesia'}</strong><br/>
-            <span style="font-size: 11px; color: #475569;">Kedalaman: ${q.depth} km</span><br/>
-            <span style="font-size: 10px; color: #64748b;">Koordinat: ${q.latitude.toFixed(2)}°, ${q.longitude.toFixed(2)}°</span><br/>
-            <span style="font-size: 9.5px; color: #94a3b8;">Waktu: ${new Date(q.timestamp).toLocaleString('id-ID')} WIB</span>
+            <strong style="font-size: 12px; color: #0f172a;">${faultZone}</strong><br/>
+            <span style="font-size: 11px; color: #475569;">Kedalaman: ${depth} km</span><br/>
+            <span style="font-size: 10px; color: #64748b;">Koordinat: ${lat.toFixed(2)}°, ${lon.toFixed(2)}°</span><br/>
+            <span style="font-size: 9.5px; color: #94a3b8;">Waktu: ${new Date(timestamp).toLocaleString('id-ID')} WIB</span>
           </div>
         `);
 
@@ -421,10 +447,20 @@ export default function Map({
 
     // Plot USGS recent earthquakes
     if (realQuakes?.recent_usgs) {
-      realQuakes.recent_usgs.forEach((q) => {
-        if (!q.latitude || !q.longitude) return;
-        const circle = L.circleMarker([q.latitude, q.longitude], {
-          radius: Math.max(5, q.magnitude * 2.2),
+      realQuakes.recent_usgs.forEach((item) => {
+        const q = item as unknown as Record<string, unknown>;
+        const lat = typeof q.latitude === 'number' ? q.latitude : undefined;
+        const lon = typeof q.longitude === 'number' ? q.longitude : undefined;
+        if (lat === undefined || lon === undefined || isNaN(lat) || isNaN(lon)) return;
+
+        const rawMag = typeof q.magnitude === 'number' ? q.magnitude : parseFloat(String(q.Magnitude || ''));
+        const magnitude = isNaN(rawMag) ? 4.5 : rawMag;
+        const rawDepth = typeof q.depth === 'number' ? q.depth : 10;
+        const depth = isNaN(rawDepth) ? 10 : rawDepth;
+        const faultZone = String(q.fault_zone || q.place || 'Indonesia Region');
+
+        const circle = L.circleMarker([lat, lon], {
+          radius: Math.max(5, magnitude * 2.2),
           color: '#38bdf8',
           fillColor: '#0284c7',
           fillOpacity: 0.5,
@@ -435,12 +471,12 @@ export default function Map({
           <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
               <span style="background: #0284c7; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 11px;">
-                M${q.magnitude.toFixed(1)}
+                M${magnitude.toFixed(1)}
               </span>
               <span style="font-size: 10px; color: #64748b; font-weight: 600;">USGS GEOJSON</span>
             </div>
-            <strong style="font-size: 12px; color: #0f172a;">${q.fault_zone}</strong><br/>
-            <span style="font-size: 11px; color: #475569;">Depth: ${q.depth.toFixed(0)} km</span>
+            <strong style="font-size: 12px; color: #0f172a;">${faultZone}</strong><br/>
+            <span style="font-size: 11px; color: #475569;">Depth: ${depth.toFixed(0)} km</span>
           </div>
         `);
 
@@ -449,12 +485,26 @@ export default function Map({
     }
 
     // Plot Latest BMKG Autogempa with pulsating hero marker
-    if (realQuakes?.latest_bmkg?.Coordinates) {
-      const parts = realQuakes.latest_bmkg.Coordinates.split(',');
-      if (parts.length === 2) {
-        const lat = parseFloat(parts[0]);
-        const lon = parseFloat(parts[1]);
-        const mag = parseFloat(realQuakes.latest_bmkg.Magnitude) || 4.5;
+    if (realQuakes?.latest_bmkg) {
+      const b = realQuakes.latest_bmkg;
+      let lat: number | null = null;
+      let lon: number | null = null;
+      if (b.Coordinates) {
+        const parts = b.Coordinates.split(',');
+        if (parts.length === 2) {
+          lat = parseFloat(parts[0].trim());
+          lon = parseFloat(parts[1].trim());
+        }
+      }
+      if (lat === null && b.Lintang && b.Bujur) {
+        lat = parseFloat(b.Lintang);
+        if (b.Lintang.includes('LS')) lat = -Math.abs(lat);
+        lon = parseFloat(b.Bujur);
+        if (b.Bujur.includes('BB')) lon = -Math.abs(lon);
+      }
+
+      if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
+        const mag = parseFloat(b.Magnitude) || 4.5;
 
         if (latestMarkerRef.current) {
           latestMarkerRef.current.remove();
@@ -480,10 +530,10 @@ export default function Map({
             <div style="background: #ff4500; color: white; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 12px; margin-bottom: 6px; display: inline-block;">
               GEMPA TERKINI BMKG • M${mag.toFixed(1)}
             </div><br/>
-            <strong style="font-size: 13px; color: #0f172a;">${realQuakes.latest_bmkg.Wilayah}</strong><br/>
-            <span style="font-size: 11px; color: #475569;">Kedalaman: ${realQuakes.latest_bmkg.Kedalaman}</span><br/>
-            <span style="font-size: 11px; color: #16a34a; font-weight: 600;">${realQuakes.latest_bmkg.Potensi}</span><br/>
-            <span style="font-size: 10px; color: #64748b;">${realQuakes.latest_bmkg.Tanggal} • ${realQuakes.latest_bmkg.Jam}</span>
+            <strong style="font-size: 13px; color: #0f172a;">${b.Wilayah}</strong><br/>
+            <span style="font-size: 11px; color: #475569;">Kedalaman: ${b.Kedalaman}</span><br/>
+            <span style="font-size: 11px; color: #16a34a; font-weight: 600;">${b.Potensi}</span><br/>
+            <span style="font-size: 10px; color: #64748b;">${b.Tanggal} • ${b.Jam}</span>
           </div>
         `);
         latestMarkerRef.current = heroMarker;
