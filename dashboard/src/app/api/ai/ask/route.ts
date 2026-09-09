@@ -9,12 +9,14 @@ export async function POST(req: NextRequest) {
     'http://localhost:8081',
   ].filter(Boolean) as string[];
 
-  let body = { question: '' };
+  let body: Record<string, any> = {};
   try {
     body = await req.json();
   } catch {
     // ignore
   }
+
+  const rawQuestion = (body.question || body.prompt || body.query || body.message || '').toString();
 
   // 1. Try Go backend if active
   for (const base of candidateBases) {
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(`${base}/api/ai/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ question: rawQuestion }),
         signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
@@ -35,7 +37,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Intelligent Copilot Answer Generation based on disaster intelligence context
-  const q = (body.question || '').toLowerCase();
+  const q = rawQuestion.toLowerCase();
   let answer = '';
 
   if (q.includes('tsunami') || q.includes('gelombang') || q.includes('tinggi')) {
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
 2. **Forward Logistic**: Pastikan ketersediaan tenda darurat, genset portabel, dan pemurnian air bersih di gudang regional BNPB tetap terisi penuh.
 3. **Komunikasi Darurat**: Lakukan uji pancar berkala kanal radio VHF/HF kebencanaan dan satelit maritim untuk mitigasi jika terjadi blackout telekomunikasi seluler.`;
   } else {
-    answer = `Analisis AI InaTEWS Sentinel untuk "${body.question}":
+    answer = `Analisis AI InaTEWS Sentinel untuk "${rawQuestion || 'telemetri seismik aktif'}":
 Sistem memproses data streaming dari 12 stasiun broadband BMKG, IOC UNESCO, MAGMA PVMBG, dan Confluent Kafka topic gempa.seismic. Parameter seismisitas nasional saat ini dalam ambang batas toleransi normal. Seluruh modul telemetri terus menyuplai model AI Google Gemini & AWS Bedrock untuk decision-support otonom 24/7.`;
   }
 
