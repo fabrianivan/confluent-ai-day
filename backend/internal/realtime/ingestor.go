@@ -578,6 +578,20 @@ func (in *Ingestor) GetEarthquakes() map[string]interface{} {
 	}
 }
 
+func (in *Ingestor) GetLatestBMKG() *BMKGGempaDetail {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+	return in.latestBMKGDetail
+}
+
+func (in *Ingestor) GetRecentBMKG() []BMKGGempaDetail {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+	out := make([]BMKGGempaDetail, len(in.recentBMKGDetail))
+	copy(out, in.recentBMKGDetail)
+	return out
+}
+
 // GetStations returns the 12 BMKG broadband seismic stations
 func (in *Ingestor) GetStations() []RealStation {
 	return RealBMKGStations

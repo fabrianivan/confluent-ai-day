@@ -99,6 +99,10 @@ func NewServer(h *hub.SSEHub, sim Simulator, pm *ai.ProviderManager, ag *agent.S
 	r.POST("/api/mode", s.handleModeToggle)
 	r.GET("/api/realtime/summary", s.handleRealtimeSummary)
 	r.GET("/api/realtime/earthquakes", s.handleRealtimeEarthquakes)
+	r.GET("/api/earthquakes", s.handleRealtimeEarthquakes)
+	r.GET("/api/earthquake", s.handleRealtimeEarthquakes)
+	r.GET("/api/bmkg/latest", s.handleLatestBMKG)
+	r.GET("/api/bmkg/recent", s.handleRecentBMKG)
 	r.GET("/api/realtime/stations", s.handleRealtimeStations)
 	r.GET("/api/realtime/volcanoes", s.handleRealtimeVolcanoes)
 	r.GET("/api/status", s.handleStatus)
@@ -376,6 +380,28 @@ func (s *Server) handleRealtimeEarthquakes(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, s.ingestor.GetEarthquakes())
+}
+
+func (s *Server) handleLatestBMKG(c *gin.Context) {
+	if s.ingestor == nil {
+		c.JSON(http.StatusOK, gin.H{"error": "ingestor not initialized"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"latest_bmkg": s.ingestor.GetLatestBMKG(),
+		"timestamp":   time.Now(),
+	})
+}
+
+func (s *Server) handleRecentBMKG(c *gin.Context) {
+	if s.ingestor == nil {
+		c.JSON(http.StatusOK, gin.H{"error": "ingestor not initialized"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"recent_bmkg": s.ingestor.GetRecentBMKG(),
+		"timestamp":    time.Now(),
+	})
 }
 
 func (s *Server) handleRealtimeStations(c *gin.Context) {
