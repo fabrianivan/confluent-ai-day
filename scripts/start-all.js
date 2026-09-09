@@ -7,12 +7,19 @@ const rootDir = path.resolve(__dirname, '..');
 console.log('\x1b[35m%s\x1b[0m', '🌋 Starting Krakatau Sentinel (Backend + Frontend)...');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
+const backendEnv = {
+  ...process.env,
+  DEMO_MODE: process.env.DEMO_MODE || 'true',
+  SERVER_PORT: process.env.SERVER_PORT || '8080',
+  CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
+};
+
 // 1. Start Go Backend
 console.log('\x1b[36m%s\x1b[0m', '🚀 [BACKEND] Starting Go API server on :8080...');
 const backend = spawn('go', ['run', 'cmd/server/main.go'], {
   cwd: path.join(rootDir, 'backend'),
   stdio: 'inherit',
-  env: { ...process.env },
+  env: backendEnv,
 });
 
 backend.on('error', (err) => {
@@ -24,7 +31,10 @@ console.log('\x1b[32m%s\x1b[0m', '🌐 [FRONTEND] Starting Next.js dashboard on 
 const frontend = spawn('npm', ['run', 'dev'], {
   cwd: path.join(rootDir, 'dashboard'),
   stdio: 'inherit',
-  env: { ...process.env },
+  env: {
+    ...process.env,
+    NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080',
+  },
 });
 
 frontend.on('error', (err) => {
