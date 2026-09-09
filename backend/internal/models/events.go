@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"strings"
+	"time"
+)
 
 // SeismicEvent represents an earthquake detection
 type SeismicEvent struct {
@@ -172,6 +176,24 @@ type TsunamiScenario struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
+// UnmarshalJSON handles both JSON array and comma-separated string for affected_zones and response_actions
+func (t *TsunamiScenario) UnmarshalJSON(data []byte) error {
+	type Alias TsunamiScenario
+	aux := &struct {
+		AffectedZones   interface{} `json:"affected_zones"`
+		ResponseActions interface{} `json:"response_actions"`
+		*Alias
+	}{
+		Alias: (*Alias)(t),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	t.AffectedZones = parseStringOrSlice(aux.AffectedZones)
+	t.ResponseActions = parseStringOrSlice(aux.ResponseActions)
+	return nil
+}
+
 // CorrelatedAlert represents a multi-stream correlation alert
 type CorrelatedAlert struct {
 	AlertLevel           string    `json:"alert_level"`
@@ -179,6 +201,53 @@ type CorrelatedAlert struct {
 	TimeWindow           string    `json:"time_window"`
 	Description          string    `json:"description"`
 	Timestamp            time.Time `json:"timestamp"`
+}
+
+// UnmarshalJSON handles both JSON array and string for correlated_indicators
+func (c *CorrelatedAlert) UnmarshalJSON(data []byte) error {
+	type Alias CorrelatedAlert
+	aux := &struct {
+		CorrelatedIndicators interface{} `json:"correlated_indicators"`
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	c.CorrelatedIndicators = parseStringOrSlice(aux.CorrelatedIndicators)
+	return nil
+}
+
+func parseStringOrSlice(val interface{}) []string {
+	if val == nil {
+		return nil
+	}
+	var res []string
+	switch v := val.(type) {
+	case []interface{}:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				res = append(res, strings.TrimSpace(s))
+			}
+		}
+	case []string:
+		return v
+	case string:
+		if v != "" {
+			parts := strings.Split(v, ",")
+			if len(parts) == 1 {
+				parts = strings.Fields(v)
+			}
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					res = append(res, p)
+				}
+			}
+		}
+	}
+	return res
 }
 
 // SystemStatus represents the overall system state
@@ -209,4 +278,24 @@ type GovernanceInfo struct {
 type SSEMessage struct {
 	Event string      `json:"event"`
 	Data  interface{} `json:"data"`
+}
+
+// LifecyclePhase describes the current real-time or simulation phase
+type LifecyclePhase struct {
+	PhaseNumber   int       `json:"phase_number"`
+	PhaseName     string    `json:"phase_name"`
+	PhaseTitle    string    `json:"phase_title"`
+	ActivityLevel float64   `json:"activity_level"`
+	DurationSec   int       `json:"duration_sec"`
+	ElapsedSec    int       `json:"elapsed_sec"`
+	SeismicEnergy float64   `json:"seismic_energy"`
+	Status        string    `json:"status"`
+	ScenarioName  string    `json:"scenario_name"`
+	Magnitude     float64   `json:"magnitude"`
+	Depth         float64   `json:"depth"`
+	FaultZone     string    `json:"fault_zone"`
+	MMI           int       `json:"mmi"`
+	Latitude      float64   `json:"latitude,omitempty"`
+	Longitude     float64   `json:"longitude,omitempty"`
+	Timestamp     time.Time `json:"timestamp"`
 }

@@ -123,8 +123,11 @@ export function useMultiSSE(endpoint: string) {
   return { events, connected };
 }
 
-export async function triggerSimulation(type: 'volcanic-escalation' | 'tsunami' | 'real-2018' | 'reset') {
-  const res = await fetch(`${API_BASE}/api/simulate/${type}`, { method: 'POST' });
+export async function triggerSimulation(typeOrPath: string) {
+  const path = typeOrPath.startsWith('/')
+    ? typeOrPath
+    : `/api/simulate/${typeOrPath}`;
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST' });
   return res.json();
 }
 

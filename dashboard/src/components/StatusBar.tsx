@@ -6,23 +6,46 @@ interface StatusBarProps {
   connected: boolean;
   alertCount: number;
   riskLevel: string;
+  dashboardMode: 'REAL' | 'SIMULASI';
+  onModeChange: (mode: 'REAL' | 'SIMULASI') => void;
 }
 
-export default function StatusBar({ connected, alertCount, riskLevel }: StatusBarProps) {
-  const [timeStr, setTimeStr] = useState({ utc: '', wib: '' });
+export default function StatusBar({
+  connected,
+  alertCount,
+  riskLevel,
+  dashboardMode,
+  onModeChange,
+}: StatusBarProps) {
+  const [timeStr, setTimeStr] = useState({ utc: '', wib: '', wita: '', wit: '' });
 
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
       setTimeStr({
         utc: now.toISOString().substring(11, 19) + ' UTC',
-        wib: new Intl.DateTimeFormat('id-ID', {
-          timeZone: 'Asia/Jakarta',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        }).format(now) + ' WIB',
+        wib:
+          new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          }).format(now) + ' WIB',
+        wita:
+          new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Makassar',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }).format(now) + ' WITA',
+        wit:
+          new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jayapura',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }).format(now) + ' WIT',
       });
     };
     updateTime();
@@ -35,40 +58,62 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
   return (
     <header className="status-bar">
       <div className="status-bar__brand">
-        <div className="status-bar__icon-wrapper">
-          <span className="status-bar__icon">🌍</span>
-          <span className="status-bar__icon-beacon"></span>
+        <div className="status-bar__icon-wrapper" aria-hidden>
+          <span className="status-bar__icon-mark" />
+          <span className="status-bar__icon-beacon" />
         </div>
         <div>
           <div className="status-bar__title">
-            <span>KRAKATAU SENTINEL</span>
-            <span className="status-bar__version">MISSION CONTROL v3.0</span>
+            <span>INATEWS SENTINEL</span>
+            <span className="status-bar__version">EARLY WARNING</span>
           </div>
           <div className="status-bar__subtitle">
-            Indonesian Subduction Zones • Megathrust Early Warning & Real-Time Seismic Intelligence
+            Peringatan dini gempa & tsunami Indonesia · BMKG TEWS · Kafka · Flink · Gemini
           </div>
         </div>
       </div>
 
-      {/* Center Telemetry: Clocks & Sensor Health */}
       <div className="status-bar__center">
         <div className="status-bar__clock">
-          <span className="status-bar__clock-icon">⏱</span>
-          <span className="status-bar__clock-val">{timeStr.wib || '16:00:00 WIB'}</span>
+          <span className="status-bar__clock-val">{timeStr.wib || '--:--:-- WIB'}</span>
           <span className="status-bar__clock-sep">|</span>
-          <span className="status-bar__clock-utc">{timeStr.utc || '09:00:00 UTC'}</span>
-        </div>
-        <div className="status-bar__sensors-badge">
-          <span className="status-bar__sensors-dot"></span>
-          <span>BMKG & InaTEWS SEISMIC SENSORS ONLINE</span>
+          <span className="status-bar__clock-sub">{timeStr.wita}</span>
+          <span className="status-bar__clock-sep">|</span>
+          <span className="status-bar__clock-sub">{timeStr.wit}</span>
+          <span className="status-bar__clock-sep">|</span>
+          <span className="status-bar__clock-utc">{timeStr.utc || '--:--:-- UTC'}</span>
         </div>
       </div>
 
-      {/* Right Controls: Cluster info, Alerts & Live indicator */}
       <div className="status-bar__right">
+        <div className="status-bar__mode-switch" role="tablist" aria-label="Mode operasi">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={dashboardMode === 'REAL'}
+            className={`status-bar__mode-btn ${
+              dashboardMode === 'REAL' ? 'status-bar__mode-btn--active-live' : ''
+            }`}
+            onClick={() => onModeChange('REAL')}
+          >
+            <span className="live-dot-pulse" />
+            Operasi live
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={dashboardMode === 'SIMULASI'}
+            className={`status-bar__mode-btn ${
+              dashboardMode === 'SIMULASI' ? 'status-bar__mode-btn--active-drill' : ''
+            }`}
+            onClick={() => onModeChange('SIMULASI')}
+          >
+            Latihan megathrust
+          </button>
+        </div>
+
         <div className="status-bar__cluster-badge">
-          <span className="status-bar__cluster-icon">⚡</span>
-          <span>CONFLUENT CLOUD + APACHE FLINK</span>
+          Confluent Cloud
         </div>
 
         <div
@@ -76,12 +121,7 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
             isAlert ? 'status-bar__alerts--active' : 'status-bar__alerts--none'
           }`}
         >
-          <span>{isAlert ? '🚨' : '✓'}</span>
-          <span>
-            {isAlert
-              ? `${alertCount || 1} CRITICAL SEISMIC ALERT${alertCount > 1 ? 'S' : ''}`
-              : 'ALL SUBDUCTION ZONES NOMINAL'}
-          </span>
+          <span>{isAlert ? `${alertCount || 1} ALERT` : 'NOMINAL'}</span>
         </div>
 
         <div className="status-bar__live">
@@ -90,7 +130,7 @@ export default function StatusBar({ connected, alertCount, riskLevel }: StatusBa
               !connected ? 'status-bar__live-dot--disconnected' : ''
             }`}
           />
-          <span>{connected ? 'LIVE SEISMIC FEED' : 'CONNECTING'}</span>
+          <span>{connected ? 'SSE LIVE' : 'MENGHUBUNGKAN'}</span>
         </div>
       </div>
     </header>

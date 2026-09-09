@@ -79,7 +79,7 @@ func (c *Consumer) Start(ctx context.Context) {
 			msg, err := c.consumer.ReadMessage(time.Second)
 			if err != nil {
 				// Timeout is expected, just continue
-				if err.(ckafka.Error).IsTimeout() {
+				if kErr, ok := err.(ckafka.Error); ok && kErr.IsTimeout() {
 					continue
 				}
 				log.Printf("[ERROR] Consumer error: %v", err)

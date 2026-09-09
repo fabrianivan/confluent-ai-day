@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { LiveEvent } from '@/lib/types';
 
 interface EventStreamProps {
@@ -37,6 +38,12 @@ function severityClass(severity: string): string {
 }
 
 export default function EventStream({ events }: EventStreamProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   return (
     <div className="card event-stream">
       <div className="card__header">
@@ -57,7 +64,9 @@ export default function EventStream({ events }: EventStreamProps) {
           events.map((event) => (
             <div key={event.id} className="event-stream__item">
               <div className={`event-stream__severity ${severityClass(event.severity)}`} />
-              <span className="event-stream__time">{formatTime(event.timestamp)}</span>
+              <span className="event-stream__time" suppressHydrationWarning>
+                {isMounted ? formatTime(event.timestamp) : '--:--:--'}
+              </span>
               <span className={`event-stream__type ${typeClass(event.type)}`}>
                 {event.type}
               </span>

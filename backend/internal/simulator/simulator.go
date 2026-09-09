@@ -39,22 +39,7 @@ type MegathrustScenario struct {
 }
 
 // LifecyclePhase describes the current autonomous simulation phase
-type LifecyclePhase struct {
-	PhaseNumber   int       `json:"phase_number"`
-	PhaseName     string    `json:"phase_name"`
-	PhaseTitle    string    `json:"phase_title"`
-	ActivityLevel float64   `json:"activity_level"`
-	DurationSec   int       `json:"duration_sec"`
-	ElapsedSec    int       `json:"elapsed_sec"`
-	SeismicEnergy float64   `json:"seismic_energy"`
-	Status        string    `json:"status"`
-	ScenarioName  string    `json:"scenario_name"`
-	Magnitude     float64   `json:"magnitude"`
-	Depth         float64   `json:"depth"`
-	FaultZone     string    `json:"fault_zone"`
-	MMI           int       `json:"mmi"`
-	Timestamp     time.Time `json:"timestamp"`
-}
+type LifecyclePhase = models.LifecyclePhase
 
 // Simulator orchestrates event generation across all domains
 type Simulator struct {
@@ -73,6 +58,7 @@ type Simulator struct {
 	currentScenario     *MegathrustScenario
 	currentScenarioIdx  int
 	onTriggerAnalysis   func(models.ActivityIndex)
+	isDrillActive       bool
 }
 
 var scenarios = []MegathrustScenario{
@@ -209,7 +195,7 @@ func (s *Simulator) SetAnalysisTrigger(fn func(models.ActivityIndex)) {
 
 // Start begins generating events and starts autonomous megathrust lifecycle
 func (s *Simulator) Start(ctx context.Context) {
-	log.Println("[INFO] KRAKATAU SENTINEL - Event simulator started - running autonomous megathrust lifecycle")
+	log.Println("[INFO] INATEWS SENTINEL - Event simulator started")
 
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -228,24 +214,48 @@ func (s *Simulator) Start(ctx context.Context) {
 // Reset returns the simulator to normal mode
 func (s *Simulator) Reset() {
 	s.mu.Lock()
+	s.isDrillActive = false
 	s.mode = ModeNormal
 	s.currentActivity = 12.0 + rand.Float64()*5.0
 	s.trendDirection = "STABLE"
+	sc := s.currentScenario
+	if sc == nil {
+		sc = &scenarios[0]
+		s.currentScenario = sc
+	}
+	phaseObj := LifecyclePhase{
+		PhaseNumber:   1,
+		PhaseName:     "SEISMIC_BASELINE",
+		PhaseTitle:    "LIVE REAL DATA (BMKG TEWS + USGS + IOC UNESCO)",
+		ActivityLevel: s.currentActivity,
+		DurationSec:   30,
+		ElapsedSec:    1,
+		SeismicEnergy: 0.8,
+		Status:        "NORMAL",
+		ScenarioName:  "LIVE REAL-TIME STREAM",
+		Magnitude:     0.0,
+		Depth:         10.0,
+		FaultZone:     "Indonesian Subduction Corridors",
+		MMI:           1,
+		Timestamp:     time.Now(),
+	}
+	s.currentPhase = phaseObj
 	s.mu.Unlock()
 
-	log.Println("[INFO] Simulator reset to normal mode")
+	log.Println("[INFO] Simulator reset to standby / normal real-time mode")
 
+	s.hub.BroadcastAll("lifecycle_phase", phaseObj)
 	s.hub.BroadcastAll("tsunami", models.TsunamiScenario{Active: false, Timestamp: time.Now()})
 	s.hub.BroadcastAll("ai_analysis", models.AIAnalysis{
 		Status:       "NORMAL",
-		Observations: []string{"All seismic indicators returned to baseline levels"},
-		Assessment:   "System reset. No significant seismic activity detected.",
+		Observations: []string{"All seismic indicators returned to baseline levels", "Ingesting real-time feeds from BMKG, USGS, and IOC"},
+		Assessment:   "System operational. Real-time Indonesian tectonic monitoring active.",
 		Recommendations: []string{
-			"Continue standard monitoring",
-			"No action required",
+			"Continue standard subduction zone monitoring",
+			"No immediate disaster evacuation advisory",
 		},
-		Confidence: 0.95,
-		Disclaimer: "This is a decision-support assessment, not an official earthquake prediction.",
+		Confidence: 0.96,
+		Disclaimer: "This is a real-time decision-support assessment for BMKG, BNPB, and BASARNAS.",
 		Timestamp:  time.Now(),
 	})
 }
@@ -253,6 +263,7 @@ func (s *Simulator) Reset() {
 // TriggerMegathrustScenario jumps to or triggers a specific scenario
 func (s *Simulator) TriggerMegathrustScenario(id string) {
 	s.mu.Lock()
+	s.isDrillActive = true
 	for i, sc := range scenarios {
 		if sc.ID == id {
 			s.currentScenarioIdx = i
@@ -261,9 +272,30 @@ func (s *Simulator) TriggerMegathrustScenario(id string) {
 		}
 	}
 	s.mode = ModeMegathrustActive
-	s.currentActivity = 85.0
-	s.trendDirection = "SURGING"
+	s.currentActivity = 88.0
+	s.trendDirection = "RUPTURE DETECTED"
+
+	sc := s.currentScenario
+	phaseObj := LifecyclePhase{
+		PhaseNumber:   3,
+		PhaseName:     "MAINSHOCK",
+		PhaseTitle:    fmt.Sprintf("Fase 3: ⚡ MAINSHOCK M%.1f — %s", sc.Magnitude, sc.Name),
+		ActivityLevel: 88.0,
+		DurationSec:   30,
+		ElapsedSec:    1,
+		SeismicEnergy: sc.Magnitude * 5.0,
+		Status:        "CRITICAL",
+		ScenarioName:  sc.Name,
+		Magnitude:     sc.Magnitude,
+		Depth:         sc.Depth,
+		FaultZone:     sc.FaultZone,
+		MMI:           mmiFromMagnitude(sc.Magnitude),
+		Timestamp:     time.Now(),
+	}
+	s.currentPhase = phaseObj
 	s.mu.Unlock()
+
+	s.hub.BroadcastAll("lifecycle_phase", phaseObj)
 	log.Printf("[INFO] Manual trigger: Megathrust scenario %s", id)
 }
 
@@ -278,28 +310,50 @@ func (s *Simulator) TriggerTsunami() {
 	s.mode = ModeTsunamiPropagation
 	s.trendDirection = "TSUNAMI WARNING"
 	sc := s.currentScenario
-	s.mu.Unlock()
-
-	log.Println("[INFO] Tsunami scenario triggered")
-	zones := []string{"Pesisir Banten", "Pesisir Lampung"}
-	actions := []string{"Evakuasi segera ke tempat tinggi"}
-	maxH := 8.5
-	if sc != nil {
-		zones = sc.TsunamiZones
-		actions = sc.TsunamiActions
-		maxH = sc.TsunamiMaxHeight
+	if sc == nil {
+		sc = &scenarios[0]
+		s.currentScenario = sc
 	}
 
-	s.hub.BroadcastAll("tsunami", models.TsunamiScenario{
+	phaseObj := LifecyclePhase{
+		PhaseNumber:   4,
+		PhaseName:     "TSUNAMI_PROPAGATION",
+		PhaseTitle:    fmt.Sprintf("Fase 4: 🌊 Propagasi Tsunami — Gelombang menuju %s", sc.AffectedAreas[0]),
+		ActivityLevel: 95.0,
+		DurationSec:   30,
+		ElapsedSec:    1,
+		SeismicEnergy: sc.Magnitude * 4.2,
+		Status:        "TSUNAMI ALERT",
+		ScenarioName:  sc.Name,
+		Magnitude:     sc.Magnitude,
+		Depth:         sc.Depth,
+		FaultZone:     sc.FaultZone,
+		MMI:           mmiFromMagnitude(sc.Magnitude),
+		Timestamp:     time.Now(),
+	}
+	s.currentPhase = phaseObj
+	s.mu.Unlock()
+
+	s.hub.BroadcastAll("lifecycle_phase", phaseObj)
+	log.Println("[INFO] Tsunami scenario triggered")
+
+	zones := sc.TsunamiZones
+	actions := sc.TsunamiActions
+	maxH := sc.TsunamiMaxHeight
+
+	tsScenario := models.TsunamiScenario{
 		Active:          true,
 		DetectionTime:   time.Now(),
-		SensorID:        "BUOY-INA-01",
+		SensorID:        fmt.Sprintf("DART-Buoy-%s", sc.ID),
 		WaveAnomaly:     maxH,
 		AffectedZones:   zones,
 		ResponseActions: actions,
 		Severity:        "CRITICAL",
 		Timestamp:       time.Now(),
-	})
+	}
+
+	s.hub.BroadcastAll("tsunami", tsScenario)
+	_ = s.producer.Produce(config.TopicNames.TsunamiScenarios, sc.ID, tsScenario)
 }
 
 // TriggerReal2018Disaster triggers the Sulawesi-Palu 2018 scenario
@@ -361,6 +415,13 @@ func (s *Simulator) broadcastMetrics(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			s.mu.RLock()
+			active := s.isDrillActive
+			s.mu.RUnlock()
+			if !active {
+				continue
+			}
+
 			status := s.GetStatus()
 			s.hub.BroadcastAll("metrics", status)
 
@@ -384,7 +445,7 @@ func (s *Simulator) GetLifecyclePhase() LifecyclePhase {
 	return s.currentPhase
 }
 
-// startAutonomousLifecycle runs continuous megathrust scenario cycles
+// startAutonomousLifecycle runs continuous megathrust scenario cycles when drill is active
 func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 	type phase struct {
 		number   int
@@ -402,13 +463,26 @@ func (s *Simulator) startAutonomousLifecycle(ctx context.Context) {
 	}
 
 	for {
+		s.mu.RLock()
+		active := s.isDrillActive
+		s.mu.RUnlock()
+
+		if !active {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(1 * time.Second):
+				continue
+			}
+		}
+
 		// Pick the current scenario
 		s.mu.Lock()
 		sc := scenarios[s.currentScenarioIdx]
 		s.currentScenario = &sc
 		s.mu.Unlock()
 
-		log.Printf("[INFO] === STARTING SCENARIO: %s (M%.1f) ===", sc.Name, sc.Magnitude)
+		log.Printf("[INFO] === STARTING DRILL SCENARIO: %s (M%.1f) ===", sc.Name, sc.Magnitude)
 
 		phases := []phase{
 			{

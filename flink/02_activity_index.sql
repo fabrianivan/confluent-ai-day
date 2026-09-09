@@ -15,23 +15,33 @@ CREATE TABLE activity_index (
     `earthquake_count` INT,
     `avg_magnitude` DOUBLE,
     `max_magnitude` DOUBLE,
-    `timestamp` TIMESTAMP(3)
+    `timestamp` TIMESTAMP_LTZ(3)
 ) WITH (
-    'kafka.topic' = 'gempa.intensity_index',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.intensity_index',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- Step 2: Continuous aggregation query
+-- Step 2: Continuous aggregation query using Window TVF
 INSERT INTO activity_index
 SELECT
     -- Weighted seismic intensity formula:
     -- 40% magnitude/energy + 35% station PGA + 15% InSAR coseismic slip + 10% tsunami wave anomaly
-    LEAST(100.0, 
-        (COALESCE(s.max_mag, 1.0) / 9.5 * 40.0) +
-        (COALESCE(st.avg_pga, 0.0) / 0.5 * 35.0) +
-        (COALESCE(sat.max_slip, 0.0) / 5.0 * 15.0) +
-        (COALESCE(o.max_wave, 0.0) / 10.0 * 10.0)
-    ) AS overall_percentage,
+    CASE 
+        WHEN (
+            (COALESCE(s.max_mag, 1.0) / 9.5 * 40.0) +
+            (COALESCE(st.avg_pga, 0.0) / 0.5 * 35.0) +
+            (COALESCE(sat.max_slip, 0.0) / 5.0 * 15.0) +
+            (COALESCE(o.max_wave, 0.0) / 10.0 * 10.0)
+        ) > 100.0 THEN 100.0
+        ELSE (
+            (COALESCE(s.max_mag, 1.0) / 9.5 * 40.0) +
+            (COALESCE(st.avg_pga, 0.0) / 0.5 * 35.0) +
+            (COALESCE(sat.max_slip, 0.0) / 5.0 * 15.0) +
+            (COALESCE(o.max_wave, 0.0) / 10.0 * 10.0)
+        )
+    END AS overall_percentage,
     
     COALESCE(s.seismic_energy_surge, 0.0) AS seismic_change,
     COALESCE(st.avg_pga, 0.0) * 100.0 AS tremor_change,
@@ -57,32 +67,40 @@ SELECT
     s.window_end AS `timestamp`
 FROM (
     SELECT 
-        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        window_end,
         COUNT(*) AS quake_count,
         AVG(magnitude) AS avg_mag,
         MAX(magnitude) AS max_mag,
         AVG(pga) * 200.0 AS seismic_energy_surge
-    FROM seismic_events
-    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+    FROM TABLE(
+        TUMBLE(TABLE seismic_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
+    )
+    GROUP BY window_start, window_end
 ) s
 LEFT JOIN (
     SELECT 
-        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        window_end,
         AVG(pga_recorded) AS avg_pga
-    FROM station_events
-    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+    FROM TABLE(
+        TUMBLE(TABLE station_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
+    )
+    GROUP BY window_start, window_end
 ) st ON s.window_end = st.window_end
 LEFT JOIN (
     SELECT 
-        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        window_end,
         MAX(coseismic_slip) AS max_slip
-    FROM satellite_events
-    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+    FROM TABLE(
+        TUMBLE(TABLE satellite_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
+    )
+    GROUP BY window_start, window_end
 ) sat ON s.window_end = sat.window_end
 LEFT JOIN (
     SELECT 
-        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        window_end,
         MAX(wave_height) AS max_wave
-    FROM ocean_events
-    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE)
+    FROM TABLE(
+        TUMBLE(TABLE ocean_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
+    )
+    GROUP BY window_start, window_end
 ) o ON s.window_end = o.window_end;

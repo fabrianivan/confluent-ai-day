@@ -192,5 +192,46 @@ export interface LifecyclePhase {
   depth?: number;
   fault_zone?: string;
   mmi?: number;
+  latitude?: number;
+  longitude?: number;
+  timestamp: string;
+}
+
+export interface BMKGGempaDetail {
+  Tanggal: string;
+  Jam: string;
+  DateTime: string;
+  Coordinates: string;
+  Lintang: string;
+  Bujur: string;
+  Magnitude: string;
+  Kedalaman: string;
+  Wilayah: string;
+  Potensi: string;
+  Dirasakan?: string;
+  Shakemap?: string;
+}
+
+export interface RealtimeEarthquakesData {
+  latest_bmkg: BMKGGempaDetail | null;
+  recent_bmkg: SeismicEvent[];
+  recent_usgs: SeismicEvent[];
+  timestamp: string;
+}
+
+export interface VolcanoEruption {
+  id: string;
+  volcano_name: string;
+  time: string;
+  date: string;
+  description: string;
+  amplitude: string;
+  duration: string;
+  visual_ash: string;
+  image_url?: string;
+  detail_url?: string;
+  author: string;
+  alert_level: string;
+  recommendation: string;
   timestamp: string;
 }

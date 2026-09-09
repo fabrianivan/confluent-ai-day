@@ -4,7 +4,7 @@
 -- Run these in Confluent Cloud Flink SQL workspace
 -- Topics must exist before running these statements
 
--- Seismic Events (USGS / BMKG Feed)
+-- 1. Seismic Events (USGS / BMKG Feed)
 CREATE TABLE seismic_events (
     `type` STRING,
     `magnitude` DOUBLE,
@@ -16,14 +16,16 @@ CREATE TABLE seismic_events (
     `mmi` INT,
     `pga` DOUBLE,
     `fault_zone` STRING,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.seismic',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.seismic',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- BMKG Station Network Telemetry
+-- 2. BMKG Station Network Telemetry
 CREATE TABLE station_events (
     `type` STRING,
     `station_id` STRING,
@@ -35,14 +37,16 @@ CREATE TABLE station_events (
     `s_wave_arrival` DOUBLE,
     `pga_recorded` DOUBLE,
     `status` STRING,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.stations',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.stations',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- InaTEWS DART Buoy & Ocean Sensor Events
+-- 3. InaTEWS DART Buoy & Ocean Sensor Events
 CREATE TABLE ocean_events (
     `type` STRING,
     `sensor_id` STRING,
@@ -53,14 +57,16 @@ CREATE TABLE ocean_events (
     `wave_eta` INT,
     `latitude` DOUBLE,
     `longitude` DOUBLE,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.tsunami',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.tsunami',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- Weather / Meteorological Events
+-- 4. Weather / Meteorological Events
 CREATE TABLE weather_events (
     `type` STRING,
     `wind_speed` DOUBLE,
@@ -69,28 +75,32 @@ CREATE TABLE weather_events (
     `atmospheric_pressure` DOUBLE,
     `temperature` DOUBLE,
     `humidity` DOUBLE,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.weather',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.weather',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- Satellite Observation (InSAR & Geodetic Slip)
+-- 5. Satellite Observation (InSAR & Geodetic Slip)
 CREATE TABLE satellite_events (
     `type` STRING,
     `ground_displacement` DOUBLE,
     `deformation` DOUBLE,
     `coseismic_slip` DOUBLE,
     `satellite_id` STRING,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.satellite',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.satellite',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- Critical Infrastructure Events
+-- 6. Critical Infrastructure Events
 CREATE TABLE infrastructure_events (
     `type` STRING,
     `facility_id` STRING,
@@ -100,14 +110,16 @@ CREATE TABLE infrastructure_events (
     `longitude` DOUBLE,
     `damage_level` STRING,
     `operational` BOOLEAN,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.infrastructure',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.infrastructure',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
--- Population & Evacuation Readiness Events
+-- 7. Population & Evacuation Readiness Events
 CREATE TABLE population_events (
     `type` STRING,
     `zone` STRING,
@@ -115,9 +127,11 @@ CREATE TABLE population_events (
     `shelter_capacity` INT,
     `evacuation_route_status` STRING,
     `evacuation_readiness` DOUBLE,
-    `timestamp` TIMESTAMP(3),
+    `timestamp` TIMESTAMP_LTZ(3),
     WATERMARK FOR `timestamp` AS `timestamp` - INTERVAL '5' SECOND
 ) WITH (
-    'kafka.topic' = 'gempa.population',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.population',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );

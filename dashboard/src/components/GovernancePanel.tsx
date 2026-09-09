@@ -5,8 +5,18 @@ import type { GovernanceInfo } from '@/lib/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-export default function GovernancePanel() {
-  const [open, setOpen] = useState(false);
+interface GovernancePanelProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function GovernancePanel({ isOpen, onClose }: GovernancePanelProps = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isOpen !== undefined ? isOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    setInternalOpen(val);
+    if (!val && onClose) onClose();
+  };
   const [governance, setGovernance] = useState<GovernanceInfo[]>([]);
 
   useEffect(() => {

@@ -79,7 +79,7 @@ export default function AIPanel({ analysis }: AIPanelProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span className="card__title">
             <span className="card__title-icon">⚡</span>
-            Krakatau Intelligence AI
+            InaTEWS Intelligence AI
           </span>
           <span style={{ fontSize: '10px', background: 'rgba(0, 242, 255, 0.12)', border: '1px solid #00f2ff', color: '#00f2ff', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
             {analysis.model_used || 'Google Gemini 2.5 Flash'}

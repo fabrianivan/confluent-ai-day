@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KRAKATAU SENTINEL — Real-Time Disaster & Seismic Intelligence",
-  description: "Real-Time AI for Disaster & Megathrust Intelligence with Early Warning. Streaming intelligence platform powered by Confluent Cloud, Apache Flink, and Google Gemini AI.",
+  title: "INATEWS SENTINEL — Sistem Peringatan Dini Gempa & Tsunami Indonesia",
+  description: "Real-Time AI for Disaster & Megathrust Intelligence with Early Warning. Streaming intelligence platform powered by BMKG TEWS, Confluent Cloud, Apache Flink, and Google Gemini AI.",
 };
 
 export default function RootLayout({

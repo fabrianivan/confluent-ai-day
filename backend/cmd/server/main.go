@@ -13,12 +13,13 @@ import (
 	"gempa-sentinel/internal/hub"
 	"gempa-sentinel/internal/kafka"
 	"gempa-sentinel/internal/models"
+	"gempa-sentinel/internal/realtime"
 	"gempa-sentinel/internal/simulator"
 )
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Println("[INFO] KRAKATAU SENTINEL - Real-Time Disaster Intelligence & Early Warning")
+	log.Println("[INFO] INATEWS SENTINEL - Real-Time Disaster Intelligence & Early Warning")
 	log.Println("------------------------------------------------------------")
 
 	// Load configuration
@@ -49,11 +50,19 @@ func main() {
 		log.Fatalf("[FATAL] Failed to create Gemini analyzer: %v", err)
 	}
 
-	// Initialize Simulator
+	// Initialize Simulator (for on-demand drill/scenarios)
 	sim := simulator.NewSimulator(producer, sseHub)
+
+	// Initialize Real-Time Ingestor (BMKG + USGS + IOC Sea Level + Open-Meteo)
+	ingestor := realtime.NewIngestor(producer, sseHub)
 
 	// Initialize API Server
 	server := api.NewServer(sseHub, sim, analyzer, cfg.ServerPort, cfg.CORSOrigin)
+	server.SetIngestor(ingestor)
+
+	// Wire AI analysis trigger from real-time and simulator to server analyzer
+	sim.SetAnalysisTrigger(server.TriggerAIAnalysis)
+	ingestor.SetAnalysisTrigger(server.TriggerAIAnalysis)
 
 	// Initialize Kafka consumer for Flink output topics
 	consumer, err := kafka.NewConsumer(cfg, kafka.ConsumerCallbacks{
@@ -79,10 +88,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Wire AI analysis trigger from autonomous simulator to server analyzer
-	sim.SetAnalysisTrigger(server.TriggerAIAnalysis)
+	// Start the real-time API data ingestor (default live mode)
+	ingestor.Start(ctx)
 
-	// Start the simulator
+	// Start the simulator (runs in background for drill/scenario injection)
 	sim.Start(ctx)
 
 	// Start the Kafka consumer (if available)
@@ -96,13 +105,13 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
-		log.Println("\n[INFO] Shutting down Krakatau Sentinel...")
+		log.Println("\n[INFO] Shutting down InaTEWS Sentinel...")
 		cancel()
 		os.Exit(0)
 	}()
 
 	// Start the API server (blocking)
-	log.Printf("[INFO] Krakatau Sentinel ready - API on :%s", cfg.ServerPort)
+	log.Printf("[INFO] InaTEWS Sentinel ready - API on :%s", cfg.ServerPort)
 	if err := server.Start(); err != nil {
 		log.Fatalf("[FATAL] Server error: %v", err)
 	}

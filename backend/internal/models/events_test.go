@@ -109,3 +109,48 @@ func TestAIAnalysisJSON(t *testing.T) {
 		t.Errorf("Expected 1 factor, got %d", len(decoded.ContributingFactors))
 	}
 }
+
+func TestCorrelatedAlertJSON(t *testing.T) {
+	// 1. Test Array representation
+	arrayJSON := `{"alert_level":"CRITICAL","correlated_indicators":["Seismic Alert","PGA Spike"],"time_window":"2026-09-09 to 2026-09-09","description":"High risk","timestamp":"2026-09-09T03:00:00Z"}`
+	var alert1 models.CorrelatedAlert
+	if err := json.Unmarshal([]byte(arrayJSON), &alert1); err != nil {
+		t.Fatalf("Failed to unmarshal array CorrelatedAlert: %v", err)
+	}
+	if len(alert1.CorrelatedIndicators) != 2 || alert1.CorrelatedIndicators[0] != "Seismic Alert" {
+		t.Errorf("Unexpected CorrelatedIndicators: %v", alert1.CorrelatedIndicators)
+	}
+
+	// 2. Test String representation (backward-compatibility / raw text)
+	strJSON := `{"alert_level":"HIGH","correlated_indicators":"Seismic(M7.2) StationPGA(0.35g)","time_window":"2026-09-09 to 2026-09-09","description":"Warning","timestamp":"2026-09-09T03:00:00Z"}`
+	var alert2 models.CorrelatedAlert
+	if err := json.Unmarshal([]byte(strJSON), &alert2); err != nil {
+		t.Fatalf("Failed to unmarshal string CorrelatedAlert: %v", err)
+	}
+	if len(alert2.CorrelatedIndicators) != 2 {
+		t.Errorf("Expected 2 indicators, got: %v", alert2.CorrelatedIndicators)
+	}
+}
+
+func TestTsunamiScenarioJSON(t *testing.T) {
+	// 1. Test Array representation
+	arrayJSON := `{"active":true,"detection_time":"2026-09-09T03:00:00Z","sensor_id":"IOC-01","wave_anomaly":4.5,"affected_zones":["Padang","Mentawai"],"response_actions":["Evacuate"],"severity":"CRITICAL","timestamp":"2026-09-09T03:00:00Z"}`
+	var ts1 models.TsunamiScenario
+	if err := json.Unmarshal([]byte(arrayJSON), &ts1); err != nil {
+		t.Fatalf("Failed to unmarshal array TsunamiScenario: %v", err)
+	}
+	if len(ts1.AffectedZones) != 2 || ts1.AffectedZones[0] != "Padang" {
+		t.Errorf("Unexpected AffectedZones: %v", ts1.AffectedZones)
+	}
+
+	// 2. Test Comma-separated string representation
+	strJSON := `{"active":true,"detection_time":"2026-09-09T03:00:00Z","sensor_id":"IOC-01","wave_anomaly":4.5,"affected_zones":"Padang, Mentawai, Cilacap","response_actions":"Evacuate, Sirens","severity":"CRITICAL","timestamp":"2026-09-09T03:00:00Z"}`
+	var ts2 models.TsunamiScenario
+	if err := json.Unmarshal([]byte(strJSON), &ts2); err != nil {
+		t.Fatalf("Failed to unmarshal string TsunamiScenario: %v", err)
+	}
+	if len(ts2.AffectedZones) != 3 || ts2.AffectedZones[1] != "Mentawai" {
+		t.Errorf("Unexpected AffectedZones: %v", ts2.AffectedZones)
+	}
+}
+

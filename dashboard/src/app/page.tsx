@@ -8,17 +8,23 @@ import type {
   TsunamiScenario,
   LiveEvent,
   ActivityIndex as ActivityIndexType,
-  LifecyclePhase,
+  RealtimeEarthquakesData,
+  VolcanoEruption,
 } from '@/lib/types';
 import ActivityGauge from '@/components/ActivityGauge';
 import MetricCards from '@/components/MetricCards';
 import EventStream from '@/components/EventStream';
 import AIPanel from '@/components/AIPanel';
 import TsunamiPanel from '@/components/TsunamiPanel';
-import TelemetryHUD from '@/components/TelemetryHUD';
 import Seismograph from '@/components/Seismograph';
+import TacticalRibbon from '@/components/TacticalRibbon';
+import LatestQuakeCard from '@/components/LatestQuakeCard';
 import StatusBar from '@/components/StatusBar';
-import GovernancePanel from '@/components/GovernancePanel';
+import FlinkPanel from '@/components/FlinkPanel';
+import OceanPanel from '@/components/OceanPanel';
+import GovernanceView from '@/components/GovernanceView';
+import SeismogramAnalysisModal from '@/components/SeismogramAnalysisModal';
+import VolcanoSeismographHub from '@/components/VolcanoSeismographHub';
 
 const MapComponent = dynamic(() => import('@/components/Map'), {
   ssr: false,
@@ -35,7 +41,7 @@ const MapComponent = dynamic(() => import('@/components/Map'), {
         fontSize: '13px',
       }}
     >
-      🗺️ Initializing National Tectonic & Subduction Zone Mapping...
+      Memuat peta subduksi & jaringan InaTEWS...
     </div>
   ),
 });
@@ -46,37 +52,37 @@ const INITIAL_EVENTS: LiveEvent[] = [
   {
     id: 'init-1',
     type: 'SEISMIC',
-    description: 'BMKG National Array: Continuous real-time broadband seismic waveform ingestion',
+    description: 'BMKG TEWS: Pemantauan kontinyu jaringan seismik broadband nasional aktif',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 3000).toISOString(),
+    timestamp: '2026-09-08T08:00:00.000Z',
   },
   {
     id: 'init-2',
     type: 'STATION',
-    description: 'Station LEM (Lembang, West Java): Signal quality 99.4%, PGA 0.002g [ONLINE]',
+    description: 'Stasiun LEM (Lembang, Jawa Barat): Kualitas sinyal 99.8%, PGA 0.0018g [ONLINE]',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 7000).toISOString(),
+    timestamp: '2026-09-08T08:01:00.000Z',
   },
   {
     id: 'init-3',
     type: 'OCEAN',
-    description: 'InaTEWS Buoy BUOY-INA-01 (Selat Sunda): Nominal sea surface displacement (0.02m)',
+    description: 'InaTEWS Buoy & Tide Gauge IOC: Selat Sunda & Pesisir Selatan Jawa nominal',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 14000).toISOString(),
+    timestamp: '2026-09-08T08:02:00.000Z',
   },
   {
     id: 'init-4',
-    type: 'SATELLITE',
-    description: 'Sentinel-1A InSAR Interferometry: Subduction trench baseline deformation nominal',
+    type: 'VOLCANO',
+    description: 'MAGMA PVMBG: Monitoring kontinyu aktivitas vulkanik kawah aktif Nusantara',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 22000).toISOString(),
+    timestamp: '2026-09-08T08:03:00.000Z',
   },
   {
     id: 'init-5',
     type: 'INFRASTRUCTURE',
-    description: 'RSUD & Pelabuhan Strategic Facilities: Operational status verified 100%',
+    description: 'Fasilitas Kritis BNPB / BPBD: Jalur telemetri darurat operasional 100%',
     severity: 'LOW',
-    timestamp: new Date(Date.now() - 31000).toISOString(),
+    timestamp: '2026-09-08T08:04:00.000Z',
   },
 ];
 
@@ -95,14 +101,14 @@ function parseLiveEvent(data: Record<string, unknown>, id: string): LiveEvent {
       case 'SEISMIC': {
         const mag = typeof data.magnitude === 'number' ? data.magnitude.toFixed(1) : '?';
         const depth = typeof data.depth === 'number' ? data.depth.toFixed(0) : '?';
-        const fault = String(data.fault_zone || 'Subduction Zone');
-        description = `Earthquake M${mag} — Depth ${depth}km (${fault})`;
+        const fault = String(data.fault_zone || 'Wilayah Indonesia');
+        description = `Gempa Bumi M${mag} — Kedalaman ${depth}km (${fault})`;
         severity =
-          typeof data.magnitude === 'number' && data.magnitude >= 7.5
+          typeof data.magnitude === 'number' && data.magnitude >= 7.0
             ? 'CRITICAL'
-            : typeof data.magnitude === 'number' && data.magnitude >= 6.0
+            : typeof data.magnitude === 'number' && data.magnitude >= 5.5
             ? 'HIGH'
-            : typeof data.magnitude === 'number' && data.magnitude >= 4.5
+            : typeof data.magnitude === 'number' && data.magnitude >= 4.0
             ? 'MEDIUM'
             : 'LOW';
         break;
@@ -111,45 +117,31 @@ function parseLiveEvent(data: Record<string, unknown>, id: string): LiveEvent {
         const st = String(data.station_id || 'Station');
         const pga = typeof data.pga_recorded === 'number' ? data.pga_recorded.toFixed(4) : '?';
         const status = String(data.status || 'ONLINE');
-        description = `Station ${st}: PGA ${pga}g [${status}]`;
+        description = `Stasiun ${st}: PGA ${pga}g [${status}]`;
         severity = status === 'CLIPPED' ? 'CRITICAL' : 'LOW';
         break;
       }
       case 'OCEAN': {
         const sensor = String(data.sensor_id || 'Tide-Gauge');
         const wh = typeof data.wave_height === 'number' ? data.wave_height.toFixed(2) : '?';
-        description = `${sensor}: Wave surge ${wh}m`;
+        description = `${sensor}: Fluktuasi muka laut ${wh}m`;
         severity =
-          typeof data.wave_height === 'number' && data.wave_height > 3.0
+          typeof data.wave_height === 'number' && data.wave_height > 2.0
             ? 'CRITICAL'
-            : typeof data.wave_height === 'number' && data.wave_height > 1.0
+            : typeof data.wave_height === 'number' && data.wave_height > 0.8
             ? 'HIGH'
             : 'LOW';
-        break;
-      }
-      case 'SATELLITE': {
-        const sat = String(data.satellite_id || 'InSAR');
-        const slip = typeof data.coseismic_slip === 'number' ? data.coseismic_slip.toFixed(2) : '0';
-        description = `${sat}: Fault slip ${slip}m detected`;
-        severity = typeof data.coseismic_slip === 'number' && data.coseismic_slip > 2.0 ? 'CRITICAL' : 'LOW';
-        break;
-      }
-      case 'INFRASTRUCTURE': {
-        const fac = String(data.facility_name || 'Facility');
-        const dmg = String(data.damage_level || 'NONE');
-        description = `${fac}: Damage level ${dmg}`;
-        severity = dmg === 'COLLAPSED' || dmg === 'SEVERE' ? 'CRITICAL' : dmg === 'MODERATE' ? 'HIGH' : 'LOW';
         break;
       }
       case 'WEATHER': {
         const ws = typeof data.wind_speed === 'number' ? data.wind_speed.toFixed(0) : '?';
         const wd = String(data.wind_direction || 'N');
-        description = `Weather: Wind ${ws} km/h ${wd}`;
+        description = `Cuaca: Kecepatan angin ${ws} km/h arah ${wd}`;
         severity = 'LOW';
         break;
       }
       default:
-        description = `${type} event received`;
+        description = `${type} telemetri diterima`;
         severity = 'LOW';
     }
   }
@@ -170,29 +162,59 @@ export default function Home() {
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
   const [tsunami, setTsunami] = useState<TsunamiScenario | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>(INITIAL_EVENTS);
-  const [phase, setPhase] = useState<LifecyclePhase | null>({
-    phase_number: 1,
-    phase_name: 'SEISMIC_BASELINE',
-    phase_title: 'Fase 1: Baseline Monitoring & USGS Feed Ingestion',
-    activity_level: 12.0,
-    duration_sec: 30,
-    elapsed_sec: 1,
-    seismic_energy: 0.8,
-    status: 'NORMAL',
-    scenario_name: 'MEGATHRUST SELAT SUNDA (M8.2)',
-    magnitude: 8.2,
-    depth: 25.0,
-    fault_zone: 'Sunda Strait Subduction',
-    mmi: 1,
-    timestamp: new Date().toISOString(),
-  });
+  const [realQuakes, setRealQuakes] = useState<RealtimeEarthquakesData | null>(null);
+  const [volcanoes, setVolcanoes] = useState<VolcanoEruption[]>([]);
+  const [selectedVolcano, setSelectedVolcano] = useState<string | null>('BMKG_REGIONAL');
+  const [inspectingSeismogram, setInspectingSeismogram] = useState<VolcanoEruption | null>(null);
+  const [dashboardMode, setDashboardMode] = useState<'REAL' | 'SIMULASI'>('REAL');
+  const [focusCoords, setFocusCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [connected, setConnected] = useState(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const eventCounter = useRef(100);
 
-  // Fetch initial system status
-  useEffect(() => {
+  // Fetch real BMKG earthquakes & system status
+  const fetchRealQuakes = useCallback(() => {
+    fetch(`${API_BASE}/api/realtime/earthquakes`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch real quakes');
+        return res.json();
+      })
+      .then((data: RealtimeEarthquakesData) => {
+        if (data) setRealQuakes(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchVolcanoes = useCallback(() => {
+    fetch(`${API_BASE}/api/realtime/volcanoes`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch volcanoes');
+        return res.json();
+      })
+      .then((data: VolcanoEruption[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setVolcanoes(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchAI = useCallback(() => {
+    fetch(`${API_BASE}/api/ai/latest`)
+      .then((res) => {
+        if (!res.ok) throw new Error('AI fetch failed');
+        return res.json();
+      })
+      .then((data: AIAnalysis) => {
+        if (data && data.status) {
+          setAiAnalysis(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchStatus = useCallback(() => {
     fetch(`${API_BASE}/api/status`)
       .then((res) => {
         if (!res.ok) throw new Error('Status fetch failed');
@@ -205,11 +227,26 @@ export default function Home() {
           if (data.tsunami_scenario?.active) setTsunami(data.tsunami_scenario);
         }
       })
-      .catch(() => {
-        // Backend not yet reachable — will auto-connect via SSE
-      });
+      .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetchRealQuakes();
+    fetchVolcanoes();
+    fetchStatus();
+    fetchAI();
+
+    const interval = setInterval(() => {
+      fetchRealQuakes();
+      fetchVolcanoes();
+      fetchStatus();
+      fetchAI();
+    }, 25000);
+
+    return () => clearInterval(interval);
+  }, [fetchRealQuakes, fetchVolcanoes, fetchStatus, fetchAI]);
+
+  // SSE Stream Listener
   const connectSSE = useCallback(() => {
     const es = new EventSource(`${API_BASE}/api/stream`);
     eventSourceRef.current = es;
@@ -222,9 +259,6 @@ export default function Home() {
         const { event: eventType, data } = msg;
 
         switch (eventType) {
-          case 'lifecycle_phase':
-            setPhase(data as LifecyclePhase);
-            break;
           case 'metrics':
             setStatus(data as SystemStatus);
             break;
@@ -243,6 +277,11 @@ export default function Home() {
               `evt-${++eventCounter.current}`
             );
             setEvents((prev) => [liveEvent, ...prev].slice(0, 50));
+
+            if (liveEvent.type === 'SEISMIC') {
+              fetchRealQuakes();
+              fetchAI();
+            }
             break;
           }
         }
@@ -254,9 +293,9 @@ export default function Home() {
     es.onerror = () => {
       setConnected(false);
       es.close();
-      setTimeout(connectSSE, 2000);
+      setTimeout(connectSSE, 2500);
     };
-  }, []);
+  }, [fetchRealQuakes, fetchAI]);
 
   useEffect(() => {
     connectSSE();
@@ -266,112 +305,168 @@ export default function Home() {
   }, [connectSSE]);
 
   const activity =
-    phase?.activity_level ??
     activityIndex?.overall_percentage ??
     status?.seismic_intensity ??
     15.0;
 
-  const trend =
-    phase?.phase_number === 4
-      ? 'TSUNAMI WARNING'
-      : phase?.phase_number === 3
-      ? 'MAINSHOCK RUPTURE'
-      : phase?.phase_number === 2
-      ? 'PRECURSOR SWARM'
-      : activityIndex?.trend_direction ?? status?.trend_direction ?? 'STABLE';
+  const trend = activityIndex?.trend_direction ?? status?.trend_direction ?? 'STABLE';
+  const riskLevel = status?.risk_level ?? 'NORMAL';
+  const alertCount = (tsunami?.active ? 1 : 0) + (status?.active_alerts ?? 0);
 
-  const riskLevel =
-    phase?.phase_number === 4 || phase?.phase_number === 3
-      ? 'CRITICAL'
-      : phase?.phase_number === 2
-      ? 'HIGH'
-      : status?.risk_level ?? 'NORMAL';
-
-  const alertCount =
-    tsunami?.active || phase?.phase_number === 4 || phase?.phase_number === 3
-      ? 1
-      : status?.active_alerts ?? 0;
+  const drillScenario: TsunamiScenario = tsunami?.active
+    ? tsunami
+    : {
+        active: true,
+        detection_time: '11:42:00 WIB',
+        sensor_id: 'BUOY-INA-01 (Selat Sunda)',
+        wave_anomaly: 3.85,
+        affected_zones: [
+          'Pesisir Pandeglang / Ujung Kulon',
+          'Lampung Selatan / Kalianda',
+          'Anyer & Carita',
+          'Cilacap Pesisir',
+        ],
+        response_actions: [
+          'Evakuasi segera ke ketinggian >20 m',
+          'Aktivasi sirine pesisir InaTEWS',
+          'Dispatch tim SAR BNPB / BASARNAS',
+        ],
+        severity: 'CRITICAL',
+        timestamp: new Date().toISOString(),
+      };
 
   return (
-    <>
+    <div className="dash-root">
       <StatusBar
         connected={connected}
         alertCount={alertCount}
         riskLevel={riskLevel}
+        dashboardMode={dashboardMode}
+        onModeChange={setDashboardMode}
       />
 
       <main className="dashboard">
-        {/* Top Mission Control Telemetry HUD Ribbon */}
-        <TelemetryHUD phase={phase} connected={connected} />
+        <p className="ops-disclaimer">
+          Decision-support untuk dampak cepat dan peringatan dini — bukan sistem prediksi gempa.
+        </p>
 
-        {/* Left Column: National Megathrust Map + Broadband Seismometer Drum */}
-        <div className="dashboard__left-col">
-          <div className="map-container">
-            <div className="map-tactical-header">
-              <span className="map-tactical-header__icon">🌐</span>
-              <span className="map-tactical-header__title">
-                INDONESIAN SUBDUCTION & MEGATHRUST RADAR // {phase?.scenario_name || 'NATIONAL OVERVIEW'}
-              </span>
-              <span className="map-tactical-header__coords">
-                FAULT: {phase?.fault_zone || 'Sunda Megathrust'}
-              </span>
-            </div>
+        <TacticalRibbon
+          latestQuake={realQuakes?.latest_bmkg ?? null}
+          activityIndex={activityIndex}
+          status={status}
+          aiAnalysis={aiAnalysis}
+          stationCount={12}
+          tideCount={34}
+        />
+
+        {dashboardMode === 'SIMULASI' && (
+          <div className="drill-banner">
+            <strong>Latihan megathrust</strong>
+            <span>
+              Overlay skenario InaTEWS pada telemetri live. Flink tetap menghitung indeks intensitas
+              dari stream Kafka — ini bukan prediksi, melainkan drill respons.
+            </span>
+          </div>
+        )}
+
+        {dashboardMode === 'SIMULASI' && <TsunamiPanel scenario={drillScenario} />}
+
+        <div className="dashboard__main-grid">
+          <div className="dashboard__left-col">
             <MapComponent
+              realQuakes={realQuakes}
+              focusCoords={focusCoords}
               activityLevel={activity}
-              tsunamiActive={tsunami?.active ?? phase?.phase_number === 4}
-              phase={phase}
+              events={events}
+              volcanoes={volcanoes}
+              selectedVolcano={selectedVolcano}
+              onSelectVolcano={(name) => setSelectedVolcano(name)}
+              onInspectVolcanoSeismogram={(v) => setInspectingSeismogram(v)}
+              tsunamiActive={dashboardMode === 'SIMULASI' || Boolean(tsunami?.active)}
+            />
+
+            <Seismograph
+              seismicEnergy={dashboardMode === 'SIMULASI' ? 8.4 : 1.2}
+              activityLevel={activity}
+              phaseName={dashboardMode === 'SIMULASI' ? 'MEGATHRUST_DRILL' : 'SEISMIC_BASELINE'}
+              volcanoes={volcanoes}
+              selectedVolcano={selectedVolcano}
+              onSelectVolcano={(name) => setSelectedVolcano(name)}
+              onInspectSeismogram={(v) => setInspectingSeismogram(v)}
             />
           </div>
 
-          <Seismograph
-            seismicEnergy={phase?.seismic_energy ?? 1.2}
-            activityLevel={activity}
-            phaseName={phase?.phase_name ?? 'SEISMIC_BASELINE'}
-          />
-        </div>
+          <div className="sidebar">
+            <LatestQuakeCard
+              quake={realQuakes?.latest_bmkg ?? null}
+              onFocusMap={(lat, lon) => setFocusCoords({ lat, lon })}
+            />
 
-        {/* Right Column: MMI Intensity Gauge + Sensor Metrics */}
-        <div className="sidebar">
-          <div className="card">
-            <div className="card__header">
-              <span className="card__title">
-                <span className="card__title-icon">📊</span>
-                Seismic Intensity Index (MMI)
-              </span>
-              <span className="card__phase-chip">
-                PHASE {phase?.phase_number ?? 1}/5
-              </span>
+            <div className="card">
+              <div className="card__header">
+                <span className="card__title">Indeks Intensitas Seismik (MMI)</span>
+                <span className="card__badge card__badge--flink">FLINK SQL</span>
+              </div>
+              <ActivityGauge percentage={activity} trend={trend} />
             </div>
-            <ActivityGauge percentage={activity} trend={trend} />
-          </div>
 
-          <MetricCards
-            oceanStatus={
-              tsunami?.active || phase?.phase_number === 4
-                ? 'TSUNAMI WAVE FRONT PROPAGATING'
-                : status?.ocean_status ?? 'NORMAL'
-            }
-            weatherStatus={status?.weather_status ?? 'NORMAL'}
-            infraStatus={
-              phase?.phase_number === 3 || phase?.phase_number === 4
-                ? 'HIGH INTENSITY SHAKING'
-                : status?.infra_status ?? 'NORMAL'
-            }
-            activityIndex={activityIndex}
-          />
+            <MetricCards
+              oceanStatus={
+                dashboardMode === 'SIMULASI' || tsunami?.active
+                  ? 'TSUNAMI WAVE FRONT'
+                  : status?.ocean_status ?? 'IOC UNESCO LIVE'
+              }
+              weatherStatus={status?.weather_status ?? 'OPEN-METEO'}
+              infraStatus={status?.infra_status ?? 'OPERASIONAL'}
+              activityIndex={activityIndex}
+            />
+          </div>
         </div>
 
-        {/* Tsunami Scenario Banner (Auto-rendered during Tsunami Phase) */}
-        {tsunami?.active && <TsunamiPanel scenario={tsunami} />}
+        {aiAnalysis ? (
+          <AIPanel analysis={aiAnalysis} />
+        ) : (
+          <div className="card ops-placeholder">
+            <h3>Gemini Decision Support</h3>
+            <p>Menunggu inferensi risiko dari telemetri seismik aktif.</p>
+          </div>
+        )}
 
-        {/* Explainable AI Decision-Support Assessment */}
-        {aiAnalysis && <AIPanel analysis={aiAnalysis} />}
+        <div className="dashboard__split">
+          <OceanPanel tsunami={dashboardMode === 'SIMULASI' ? drillScenario : tsunami} />
+          <EventStream events={events} />
+        </div>
 
-        {/* Live Multi-Domain Event Stream Feed */}
-        <EventStream events={events} />
+        <section className="platform-row">
+          <div className="platform-row__intro">
+            <h2>Spine streaming</h2>
+            <p>
+              Confluent Cloud mengorelasikan stasiun BMKG, buoy InaTEWS, dan feed laut lewat Flink
+              SQL. Schema Registry menjaga kontrak event untuk decision-support.
+            </p>
+          </div>
+          <FlinkPanel activityIndex={activityIndex} status={status} />
+          <GovernanceView />
+        </section>
+
+        <details className="context-drawer">
+          <summary>Konteks gunung api PVMBG (lapisan pendukung, bukan misi utama)</summary>
+          <VolcanoSeismographHub
+            volcanoes={volcanoes}
+            selectedVolcano={selectedVolcano === 'BMKG_REGIONAL' ? 'Anak Krakatau' : selectedVolcano}
+            onSelectVolcano={(name) => setSelectedVolcano(name)}
+            onInspectSeismogram={(v) => setInspectingSeismogram(v)}
+          />
+        </details>
       </main>
 
-      <GovernancePanel />
-    </>
+      {/* Seismogram Image & Physical Waveform Analysis Modal */}
+      {inspectingSeismogram && (
+        <SeismogramAnalysisModal
+          volcano={inspectingSeismogram}
+          onClose={() => setInspectingSeismogram(null)}
+        />
+      )}
+    </div>
   );
 }

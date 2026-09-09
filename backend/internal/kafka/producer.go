@@ -60,6 +60,8 @@ func (p *Producer) handleDeliveryReports() {
 			if ev.TopicPartition.Error != nil {
 				log.Printf("[ERROR] Delivery failed to %s: %v", *ev.TopicPartition.Topic, ev.TopicPartition.Error)
 			}
+		case kafka.Error:
+			log.Printf("[ERROR] Kafka producer error: %v", ev)
 		}
 	}
 }
@@ -98,30 +100,59 @@ func (p *Producer) Produce(topic string, key string, value interface{}) error {
 
 // CreateTopics verifies and ensures all required Kafka topics exist in Confluent Cloud
 func (p *Producer) CreateTopics() error {
-	if p == nil || p.producer == nil || (p.cfg != nil && p.cfg.DemoMode) {
+	if p == nil || (p.cfg != nil && p.cfg.DemoMode) {
 		return nil
 	}
 
-	adminClient, err := kafka.NewAdminClientFromProducer(p.producer)
+	// Create dedicated AdminClient with separate connection so it does not interfere
+	// with the Producer's handle or idempotence PID acquisition.
+	adminClient, err := kafka.NewAdminClient(&kafka.ConfigMap{
+		"bootstrap.servers": p.cfg.BootstrapServers,
+		"security.protocol": "SASL_SSL",
+		"sasl.mechanisms":   "PLAIN",
+		"sasl.username":     p.cfg.KafkaAPIKey,
+		"sasl.password":     p.cfg.KafkaAPISecret,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create admin client: %w", err)
 	}
 	defer adminClient.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	allTopics := append(config.AllSourceTopics(), config.AllOutputTopics()...)
-	var topicSpecs []kafka.TopicSpecification
-	for _, t := range allTopics {
-		topicSpecs = append(topicSpecs, kafka.TopicSpecification{
-			Topic:             t,
-			NumPartitions:     3,
-			ReplicationFactor: 3,
-		})
+	// First query cluster metadata to check existing topics
+	meta, err := adminClient.GetMetadata(nil, true, 5000)
+	existing := make(map[string]bool)
+	if err == nil && meta != nil {
+		for name, topMeta := range meta.Topics {
+			if topMeta.Error.Code() == kafka.ErrNoError && len(topMeta.Partitions) > 0 {
+				existing[name] = true
+			}
+		}
+	} else if err != nil {
+		log.Printf("[WARN] Failed to fetch Kafka metadata: %v. Will attempt topic creation.", err)
 	}
 
-	results, err := adminClient.CreateTopics(ctx, topicSpecs)
+	allTopics := append(config.AllSourceTopics(), config.AllOutputTopics()...)
+	var missingTopics []kafka.TopicSpecification
+	for _, t := range allTopics {
+		if !existing[t] {
+			missingTopics = append(missingTopics, kafka.TopicSpecification{
+				Topic:             t,
+				NumPartitions:     3,
+				ReplicationFactor: 3,
+			})
+		}
+	}
+
+	if len(missingTopics) == 0 {
+		log.Printf("[INFO] All %d Kafka topics verified in Confluent Cloud", len(allTopics))
+		return nil
+	}
+
+	log.Printf("[INFO] Creating %d missing Kafka topics in Confluent Cloud: %v", len(missingTopics), missingTopics)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	results, err := adminClient.CreateTopics(ctx, missingTopics)
 	if err != nil {
 		log.Printf("[WARN] AdminClient CreateTopics: %v", err)
 		return nil
@@ -133,7 +164,7 @@ func (p *Producer) CreateTopics() error {
 		}
 	}
 
-	log.Println("[INFO] Kafka topics verified in Confluent Cloud")
+	log.Println("[INFO] Kafka topics created and verified in Confluent Cloud")
 	return nil
 }
 

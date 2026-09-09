@@ -6,16 +6,18 @@
 
 CREATE TABLE tsunami_scenarios (
     `active` BOOLEAN,
-    `detection_time` TIMESTAMP(3),
+    `detection_time` TIMESTAMP_LTZ(3),
     `sensor_id` STRING,
     `wave_anomaly` DOUBLE,
-    `affected_zones` STRING,
-    `response_actions` STRING,
+    `affected_zones` ARRAY<STRING>,
+    `response_actions` ARRAY<STRING>,
     `severity` STRING,
-    `timestamp` TIMESTAMP(3)
+    `timestamp` TIMESTAMP_LTZ(3)
 ) WITH (
-    'kafka.topic' = 'gempa.tsunami_scenarios',
-    'value.format' = 'json'
+    'connector' = 'kafka',
+    'topic' = 'gempa.tsunami_scenarios',
+    'value.format' = 'json',
+    'value.json.timestamp-format.standard' = 'ISO-8601'
 );
 
 INSERT INTO tsunami_scenarios
@@ -26,14 +28,14 @@ SELECT
     max_wave_height AS wave_anomaly,
     
     CASE 
-        WHEN max_wave_height > 10.0 THEN 'Pesisir Mentawai,Padang,Cilacap,Anyer,Palu Bay'
-        WHEN max_wave_height > 5.0 THEN 'Zona Pesisir Utama (0-10m ASL)'
-        ELSE 'Zona Waspada Pesisir'
+        WHEN max_wave_height > 10.0 THEN ARRAY['Pesisir Mentawai', 'Padang', 'Cilacap', 'Anyer', 'Palu Bay']
+        WHEN max_wave_height > 5.0 THEN ARRAY['Zona Pesisir Utama (0-10m ASL)', 'Pesisir Banten & Selat Sunda', 'Pesisir Barat Sumatera']
+        ELSE ARRAY['Zona Waspada Pesisir', 'Pelabuhan Regional']
     END AS affected_zones,
     
     CASE 
-        WHEN max_wave_height > 5.0 THEN '🚨 EVAKUASI SEGERA ke dataran tinggi (>20m),Aktifkan sirene tsunami,Hentikan seluruh navigasi laut,Mobilisasi SAR'
-        ELSE 'Waspada potensi gelombang tinggi,Jauhi pantai'
+        WHEN max_wave_height > 5.0 THEN ARRAY['🚨 EVAKUASI SEGERA ke dataran tinggi (>20m)', 'Aktifkan sirene tsunami nasional', 'Hentikan seluruh navigasi laut & pelabuhan', 'Mobilisasi Tim SAR & BNPB']
+        ELSE ARRAY['Waspada potensi gelombang tinggi', 'Jauhi pantai dan muara sungai']
     END AS response_actions,
     
     CASE 
@@ -46,11 +48,13 @@ SELECT
     
 FROM (
     SELECT
-        TUMBLE_START(`timestamp`, INTERVAL '1' MINUTE) AS window_start,
-        TUMBLE_END(`timestamp`, INTERVAL '1' MINUTE) AS window_end,
+        window_start,
+        window_end,
         sensor_id,
         MAX(wave_height) AS max_wave_height
-    FROM ocean_events
-    GROUP BY TUMBLE(`timestamp`, INTERVAL '1' MINUTE), sensor_id
+    FROM TABLE(
+        TUMBLE(TABLE ocean_events, DESCRIPTOR(`timestamp`), INTERVAL '1' MINUTE)
+    )
+    GROUP BY window_start, window_end, sensor_id
 )
 WHERE max_wave_height > 1.5;

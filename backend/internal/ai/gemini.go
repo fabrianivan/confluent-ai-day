@@ -53,7 +53,7 @@ func NewGeminiAnalyzer(apiKey string) (*GeminiAnalyzer, error) {
 	}, nil
 }
 
-const systemPrompt = `You are Krakatau Sentinel's Chief Disaster Intelligence AI. You ingest and analyze live streaming telemetry from Indonesia's subduction zones (BMKG seismic stations, InaTEWS DART tsunami buoys, InSAR geodetic slip, and critical infrastructure).
+const systemPrompt = `You are InaTEWS Sentinel's Chief Disaster Intelligence AI. You ingest and analyze live streaming telemetry from Indonesia's subduction zones (BMKG seismic stations, InaTEWS DART tsunami buoys, InSAR geodetic slip, and critical infrastructure).
 
 Your mission is to provide rapid, evidence-grounded tactical intelligence for decision-makers:
 1. Executive Threat Summary (concise, high-impact overview)
@@ -159,7 +159,7 @@ func (g *GeminiAnalyzer) Analyze(ctx context.Context, activityIndex models.Activ
 func (g *GeminiAnalyzer) AskCopilot(ctx context.Context, question string, telemetryContext string) (*models.AIQuestionResponse, error) {
 	startTime := time.Now()
 
-	copilotSystem := `You are Krakatau Sentinel's Disaster Intelligence Copilot.
+	copilotSystem := `You are InaTEWS Sentinel's Disaster Intelligence Copilot.
 You answer emergency operators, field coordinators, and decision-makers clearly, concisely, and actionably in Indonesian (Bahasa Indonesia).
 Always ground your answers in the active streaming telemetry provided.
 Focus on safety, evacuation procedures, wave arrival calculations, and structural risk.`
@@ -169,7 +169,7 @@ Focus on safety, evacuation procedures, wave arrival calculations, and structura
 	if g.client == nil {
 		return &models.AIQuestionResponse{
 			Answer:    g.fallbackCopilot(question),
-			Model:     "Krakatau Copilot (Heuristic Engine)",
+			Model:     "InaTEWS Copilot (Heuristic Engine)",
 			LatencyMs: time.Since(startTime).Milliseconds(),
 			Timestamp: time.Now(),
 		}, nil
@@ -195,7 +195,7 @@ Focus on safety, evacuation procedures, wave arrival calculations, and structura
 		log.Printf("[WARN] Copilot API error: %v", err)
 		return &models.AIQuestionResponse{
 			Answer:    g.fallbackCopilot(question),
-			Model:     "Krakatau Copilot (Heuristic Fallback)",
+			Model:     "InaTEWS Copilot (Heuristic Fallback)",
 			LatencyMs: time.Since(startTime).Milliseconds(),
 			Timestamp: time.Now(),
 		}, nil
@@ -204,7 +204,7 @@ Focus on safety, evacuation procedures, wave arrival calculations, and structura
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
 		return &models.AIQuestionResponse{
 			Answer:    g.fallbackCopilot(question),
-			Model:     "Krakatau Copilot (Heuristic Fallback)",
+			Model:     "InaTEWS Copilot (Heuristic Fallback)",
 			LatencyMs: time.Since(startTime).Milliseconds(),
 			Timestamp: time.Now(),
 		}, nil
@@ -229,7 +229,7 @@ func (g *GeminiAnalyzer) fallbackCopilot(question string) string {
 	if strings.Contains(q, "infrastruktur") || strings.Contains(q, "jembatan") || strings.Contains(q, "pelabuhan") {
 		return "PGA tercatat >0.35g mengindikasikan potensi likuefaksi dan pergeseran tanah signifikan. Seluruh jembatan bentang panjang dan pelabuhan penyeberangan (seperti Merak-Bakauheni / Teluk Bayur) harus segera dihentikan operasionalnya untuk inspeksi visual keretakan struktur pilar."
 	}
-	return "Sistem Krakatau Sentinel mendeteksi aktivitas kegempaan aktif pada segmen megathrust Indonesia. Disarankan seluruh unit BPBD dan BASARNAS tetap siaga 1, menyalakan sirine peringatan dini pesisir, dan memastikan saluran komunikasi darurat HF/VHF cadangan berfungsi penuh."
+	return "Sistem InaTEWS Sentinel mendeteksi aktivitas kegempaan aktif pada segmen megathrust Indonesia. Disarankan seluruh unit BPBD dan BASARNAS tetap siaga 1, menyalakan sirine peringatan dini pesisir, dan memastikan saluran komunikasi darurat HF/VHF cadangan berfungsi penuh."
 }
 
 func buildAnalysisPrompt(idx models.ActivityIndex, recentEvents []string) string {
@@ -346,7 +346,7 @@ func (g *GeminiAnalyzer) fallbackAnalysis(idx models.ActivityIndex) *models.AIAn
 			"Data stasiun BMKG dan tide gauge masih dalam batas ambang toleransi aman",
 		}
 		recommendations = []string{
-			"Lanjutkan pemantauan standar melalui sistem otomatis Krakatau Sentinel",
+			"Lanjutkan pemantauan standar melalui sistem otomatis InaTEWS Sentinel",
 			"Evaluasi data deformasi GPS berkala",
 		}
 		agencyActions = []models.AgencyAction{

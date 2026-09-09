@@ -13,6 +13,7 @@ import (
 	"gempa-sentinel/internal/ai"
 	"gempa-sentinel/internal/hub"
 	"gempa-sentinel/internal/models"
+	"gempa-sentinel/internal/realtime"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ type Server struct {
 	router      *gin.Engine
 	hub         *hub.SSEHub
 	sim         Simulator
+	ingestor    *realtime.Ingestor
 	analyzer    *ai.GeminiAnalyzer
 	port        string
 	corsOrigin  string
@@ -32,10 +34,13 @@ type Server struct {
 	aiTriggerMu      sync.Mutex
 	recentEvents     []string
 	recentEventsMu   sync.Mutex
+	latestAI         *models.AIAnalysis
+	latestAIMu       sync.RWMutex
 }
 
 // Simulator defines the interface for the event simulator
 type Simulator interface {
+	TriggerMegathrustScenario(id string)
 	TriggerVolcanicEscalation()
 	TriggerTsunami()
 	TriggerReal2018Disaster()
@@ -74,10 +79,17 @@ func NewServer(h *hub.SSEHub, sim Simulator, analyzer *ai.GeminiAnalyzer, port, 
 
 	// REST endpoints
 	r.POST("/api/ai/ask", s.handleAIAsk)
+	r.GET("/api/ai/latest", s.handleLatestAI)
 	r.POST("/api/simulate/volcanic-escalation", s.handleVolcanicEscalation)
 	r.POST("/api/simulate/tsunami", s.handleTsunamiScenario)
 	r.POST("/api/simulate/real-2018", s.handleReal2018Disaster)
+	r.POST("/api/simulate/scenario/:id", s.handleScenarioTrigger)
 	r.POST("/api/simulate/reset", s.handleReset)
+	r.POST("/api/mode", s.handleModeToggle)
+	r.GET("/api/realtime/summary", s.handleRealtimeSummary)
+	r.GET("/api/realtime/earthquakes", s.handleRealtimeEarthquakes)
+	r.GET("/api/realtime/stations", s.handleRealtimeStations)
+	r.GET("/api/realtime/volcanoes", s.handleRealtimeVolcanoes)
 	r.GET("/api/status", s.handleStatus)
 	r.GET("/api/governance", s.handleGovernance)
 	r.GET("/api/health", s.handleHealth)
@@ -129,7 +141,11 @@ func (s *Server) TriggerAIAnalysis(activityIndex models.ActivityIndex) {
 			return
 		}
 
-		log.Printf("[INFO] AI Analysis: %s (confidence: %.2f)", analysis.Status, analysis.Confidence)
+		s.latestAIMu.Lock()
+		s.latestAI = analysis
+		s.latestAIMu.Unlock()
+
+		log.Printf("[INFO] AI Analysis generated: %s (confidence: %.2f)", analysis.Status, analysis.Confidence)
 		s.hub.BroadcastAll("ai_analysis", analysis)
 	}()
 }
@@ -254,6 +270,18 @@ func (s *Server) handleReal2018Disaster(c *gin.Context) {
 	})
 }
 
+func (s *Server) handleScenarioTrigger(c *gin.Context) {
+	id := c.Param("id")
+	log.Printf("[INFO] API: Megathrust scenario '%s' triggered", id)
+	s.sim.TriggerMegathrustScenario(id)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "ok",
+		"scenario": id,
+		"message":  fmt.Sprintf("Scenario '%s' triggered", id),
+	})
+}
+
 func (s *Server) handleReset(c *gin.Context) {
 	log.Println("[INFO] API: System reset")
 	s.sim.Reset()
@@ -265,8 +293,89 @@ func (s *Server) handleReset(c *gin.Context) {
 }
 
 func (s *Server) handleStatus(c *gin.Context) {
-	status := s.sim.GetStatus()
+	var status models.SystemStatus
+	if s.ingestor != nil && s.ingestor.GetMode() == "real" {
+		status = s.ingestor.GetStatus()
+	} else {
+		status = s.sim.GetStatus()
+	}
+
+	s.latestAIMu.RLock()
+	if s.latestAI != nil {
+		status.LatestAI = s.latestAI
+	}
+	s.latestAIMu.RUnlock()
+
 	c.JSON(http.StatusOK, status)
+}
+
+func (s *Server) handleLatestAI(c *gin.Context) {
+	s.latestAIMu.RLock()
+	latest := s.latestAI
+	s.latestAIMu.RUnlock()
+
+	if latest != nil {
+		c.JSON(http.StatusOK, latest)
+		return
+	}
+
+	// Generate on demand if not yet cached
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
+	defer cancel()
+
+	actIdx := models.ActivityIndex{
+		OverallPercentage: 35.0,
+		TrendDirection:    "BMKG REAL-TIME FEED",
+		MaxMagnitude:      5.2,
+		Timestamp:         time.Now(),
+	}
+	s.recentEventsMu.Lock()
+	events := make([]string, len(s.recentEvents))
+	copy(events, s.recentEvents)
+	s.recentEventsMu.Unlock()
+	if len(events) == 0 {
+		events = []string{"BMKG TEWS: Pemantauan kontinyu seismometer broadband nasional aktif"}
+	}
+
+	analysis, err := s.analyzer.Analyze(ctx, actIdx, events)
+	if err == nil && analysis != nil {
+		s.latestAIMu.Lock()
+		s.latestAI = analysis
+		s.latestAIMu.Unlock()
+		c.JSON(http.StatusOK, analysis)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"error": "AI analysis not ready"})
+}
+
+func (s *Server) handleRealtimeEarthquakes(c *gin.Context) {
+	if s.ingestor == nil {
+		c.JSON(http.StatusOK, gin.H{"error": "ingestor not initialized"})
+		return
+	}
+	c.JSON(http.StatusOK, s.ingestor.GetEarthquakes())
+}
+
+func (s *Server) handleRealtimeStations(c *gin.Context) {
+	if s.ingestor == nil {
+		c.JSON(http.StatusOK, gin.H{"stations": []interface{}{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"stations": s.ingestor.GetStations(),
+		"total":    len(s.ingestor.GetStations()),
+	})
+}
+
+func (s *Server) handleRealtimeVolcanoes(c *gin.Context) {
+	if s.ingestor != nil {
+		c.JSON(http.StatusOK, s.ingestor.GetVolcanoEruptions())
+		return
+	}
+	vc := realtime.NewVolcanoClient()
+	list, _ := vc.FetchLatestEruptions(c.Request.Context())
+	c.JSON(http.StatusOK, list)
 }
 
 func (s *Server) handleGovernance(c *gin.Context) {
@@ -292,6 +401,38 @@ func (s *Server) handleHealth(c *gin.Context) {
 		"sse_clients": s.hub.ClientCount(),
 		"timestamp":   time.Now(),
 	})
+}
+
+// SetIngestor binds the real-time ingestor
+func (s *Server) SetIngestor(ing *realtime.Ingestor) {
+	s.ingestor = ing
+}
+
+func (s *Server) handleModeToggle(c *gin.Context) {
+	var body struct {
+		Mode string `json:"mode"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mode is required"})
+		return
+	}
+
+	if s.ingestor != nil {
+		s.ingestor.SetMode(body.Mode)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "ok",
+		"mode":   body.Mode,
+	})
+}
+
+func (s *Server) handleRealtimeSummary(c *gin.Context) {
+	if s.ingestor == nil {
+		c.JSON(http.StatusOK, gin.H{"status": "ingestor not initialized"})
+		return
+	}
+	c.JSON(http.StatusOK, s.ingestor.GetSummary())
 }
 
 func (s *Server) handleAIAsk(c *gin.Context) {
