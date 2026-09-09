@@ -230,12 +230,15 @@ func (in *Ingestor) fetchBMKGOnce() {
 		}
 	}
 
-	// Also fetch recent M5+ quakes
+	// Also fetch recent M5+ quakes and use them as a fallback when the latest autogempa payload is empty
 	recents, details, err2 := in.bmkgClient.FetchRecentGempa()
-	if err2 == nil && len(recents) > 0 {
+	if err2 == nil && len(details) > 0 {
 		in.mu.Lock()
 		in.recentBMKG = recents
 		in.recentBMKGDetail = details
+		if in.latestBMKGDetail == nil && len(details) > 0 {
+			in.latestBMKGDetail = &details[0]
+		}
 		in.mu.Unlock()
 	}
 }

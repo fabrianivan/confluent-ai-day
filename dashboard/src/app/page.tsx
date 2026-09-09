@@ -547,7 +547,7 @@ export default function Home() {
             ) : (
               <div className="card ops-placeholder">
                 <h3>InaTEWS AI Decision Support</h3>
-                <p>Mempersiapkan inferensi risiko dari telemetri seismik aktif...</p>
+                <p>AI sedang memproses telemetri seismik aktif...</p>
               </div>
             )}
           </>

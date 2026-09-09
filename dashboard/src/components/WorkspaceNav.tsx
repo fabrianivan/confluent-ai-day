@@ -48,14 +48,14 @@ export default function WorkspaceNav({
       id: 'volcano',
       label: 'PVMBG SEISMOGRAM HUB',
       icon: '🌋',
-      badge: 'SPEKTROGRAM',
+      badge: 'LIVE',
       badgeColor: '#f59e0b',
     },
     {
       id: 'all',
-      label: 'PANORAMA LENGKAP',
+      label: 'SEMUA PANEL',
       icon: '📑',
-      badge: 'SEMUA PANEL',
+      badge: 'IKHTISAR',
       badgeColor: '#94a3b8',
     },
   ];

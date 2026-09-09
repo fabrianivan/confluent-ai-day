@@ -72,7 +72,14 @@ func (c *BMKGClient) FetchLatestGempa() (*models.SeismicEvent, *BMKGGempaDetail,
 	}
 
 	detail := data.Infogempa.Gempa
+	if isEmptyBMKGDetail(detail) {
+		return nil, nil, nil
+	}
+
 	evt, _ := convertBMKGToSeismicEvent(detail)
+	if evt == nil {
+		return nil, nil, nil
+	}
 	return evt, &detail, nil
 }
 
@@ -95,29 +102,57 @@ func (c *BMKGClient) FetchRecentGempa() ([]models.SeismicEvent, []BMKGGempaDetai
 	}
 
 	var events []models.SeismicEvent
+	filtered := make([]BMKGGempaDetail, 0, len(data.Infogempa.Gempa))
 	for _, g := range data.Infogempa.Gempa {
+		if isEmptyBMKGDetail(g) {
+			continue
+		}
 		evt, _ := convertBMKGToSeismicEvent(g)
 		if evt != nil {
 			events = append(events, *evt)
+			filtered = append(filtered, g)
 		}
 	}
-	return events, data.Infogempa.Gempa, nil
+	return events, filtered, nil
+}
+
+func isEmptyBMKGDetail(g BMKGGempaDetail) bool {
+	return strings.TrimSpace(g.Magnitude) == "" ||
+		strings.TrimSpace(g.Coordinates) == "" ||
+		strings.TrimSpace(g.Wilayah) == "" ||
+		strings.TrimSpace(g.DateTime) == ""
 }
 
 func convertBMKGToSeismicEvent(g BMKGGempaDetail) (*models.SeismicEvent, string) {
-	mag, _ := strconv.ParseFloat(g.Magnitude, 64)
+	if isEmptyBMKGDetail(g) {
+		return nil, g.Potensi
+	}
+
+	mag, err := strconv.ParseFloat(g.Magnitude, 64)
+	if err != nil || mag <= 0 {
+		return nil, g.Potensi
+	}
 
 	// Parse depth e.g. "10 km"
 	depthStr := strings.TrimSuffix(strings.TrimSpace(g.Kedalaman), "km")
 	depthStr = strings.TrimSpace(depthStr)
-	depth, _ := strconv.ParseFloat(depthStr, 64)
+	depth, err := strconv.ParseFloat(depthStr, 64)
+	if err != nil {
+		return nil, g.Potensi
+	}
 
 	// Parse coordinates e.g. "-8.08,120.56"
 	parts := strings.Split(g.Coordinates, ",")
-	var lat, lon float64
-	if len(parts) == 2 {
-		lat, _ = strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-		lon, _ = strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if len(parts) != 2 {
+		return nil, g.Potensi
+	}
+	lat, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	if err != nil {
+		return nil, g.Potensi
+	}
+	lon, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if err != nil {
+		return nil, g.Potensi
 	}
 
 	// Parse timestamp
