@@ -8,7 +8,7 @@ interface AIPanelProps {
   analysis: AIAnalysis;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 
 const SUGGESTED_PROMPTS = [
   'Berapa perkiraan tinggi gelombang tsunami di pesisir terdekat?',

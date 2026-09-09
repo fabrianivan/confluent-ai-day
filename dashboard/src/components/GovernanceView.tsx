@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { GovernanceInfo } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 
 const DEFAULT_GOVERNANCE: GovernanceInfo[] = [
   { topic: 'gempa.seismic', classification: 'Scientific', pii: 'None', schema_version: 'v1.0 (Avro)', owner: 'BMKG Seismology', access: 'Public' },

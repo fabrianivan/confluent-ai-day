@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { GovernanceInfo } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 
 interface GovernancePanelProps {
   isOpen?: boolean;
