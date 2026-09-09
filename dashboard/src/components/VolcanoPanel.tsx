@@ -16,6 +16,16 @@ export default function VolcanoPanel({
 }: VolcanoPanelProps) {
   const [selectedVolcano, setSelectedVolcano] = useState<string>('all');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const openPreview = (imgUrl: string) => {
+    setPreviewImage(imgUrl);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
 
   // Extract unique volcano names for filter
   const volcanoNames = Array.from(new Set(erupts.map((e) => e.volcano_name)));
@@ -153,7 +163,7 @@ export default function VolcanoPanel({
                   {e.image_url && (
                     <div
                       className="volcano-card__img-wrap"
-                      onClick={() => setPreviewImage(e.image_url || null)}
+                      onClick={() => openPreview(e.image_url || '')}
                       title="Klik untuk memperbesar gambar"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -241,9 +251,144 @@ export default function VolcanoPanel({
       {/* Lightbox Image Preview Modal */}
       {previewImage && (
         <div className="volcano-lightbox" onClick={() => setPreviewImage(null)}>
-          <div className="volcano-lightbox__content" onClick={(e) => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewImage} alt="Foto Erupsi PVMBG" className="volcano-lightbox__img" />
+          <div
+            className="volcano-lightbox__content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              maxWidth: '92vw',
+              maxHeight: '92vh',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            {/* Zoom Controls Toolbar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                background: 'rgba(6, 10, 20, 0.9)',
+                borderRadius: '6px',
+                border: '1px solid var(--border-subtle)',
+                marginBottom: '10px',
+                zIndex: 10,
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#00f2ff' }}>🔍 Zoom:</span>
+              <button
+                onClick={() => setZoom((z) => Math.max(0.75, Number((z - 0.25).toFixed(2))))}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                }}
+              >
+                −
+              </button>
+              {[1, 1.5, 2].map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => {
+                    setZoom(lvl);
+                    if (lvl === 1) setPan({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    background: zoom === lvl ? 'rgba(0,242,255,0.2)' : 'rgba(255,255,255,0.05)',
+                    color: zoom === lvl ? '#00f2ff' : 'var(--text-secondary)',
+                    border: `1px solid ${zoom === lvl ? '#00f2ff' : 'var(--border-subtle)'}`,
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {lvl}x
+                </button>
+              ))}
+              <button
+                onClick={() => setZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                }}
+              >
+                +
+              </button>
+              <button
+                onClick={() => {
+                  setZoom(1);
+                  setPan({ x: 0, y: 0 });
+                }}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  fontSize: '10px',
+                }}
+              >
+                ⟲ Reset
+              </button>
+            </div>
+
+            {/* Draggable Pan Image Container */}
+            <div
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.2 : -0.2;
+                setZoom((z) => Math.max(0.75, Math.min(3.5, Number((z + delta).toFixed(2)))));
+              }}
+              onMouseDown={(e) => {
+                if (zoom <= 1) return;
+                setIsDragging(true);
+                setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+              }}
+              onMouseMove={(e) => {
+                if (!isDragging || zoom <= 1) return;
+                setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+              }}
+              onMouseUp={() => setIsDragging(false)}
+              onMouseLeave={() => setIsDragging(false)}
+              style={{
+                width: '100%',
+                maxHeight: '78vh',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewImage}
+                alt="Foto Erupsi PVMBG"
+                className="volcano-lightbox__img"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  transition: isDragging ? 'none' : 'transform 0.15s ease',
+                  userSelect: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            </div>
+
             <button
               className="volcano-lightbox__close-btn"
               onClick={() => setPreviewImage(null)}

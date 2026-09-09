@@ -212,11 +212,100 @@ Focus on safety, evacuation procedures, wave arrival calculations, and structura
 
 	return &models.AIQuestionResponse{
 		Answer:    resp.Candidates[0].Content.Parts[0].Text,
-		Model:     "Google Gemini 2.5 Flash",
+		Model:     g.ModelName(),
 		LatencyMs: time.Since(startTime).Milliseconds(),
 		Timestamp: time.Now(),
 	}, nil
 }
+
+// ProviderName returns the identifier for this provider
+func (g *GeminiAnalyzer) ProviderName() string {
+	return "gemini"
+}
+
+// ModelName returns the friendly model name
+func (g *GeminiAnalyzer) ModelName() string {
+	return "Google Gemini 2.5 Flash"
+}
+
+// StreamCopilot streams answers token-by-token
+func (g *GeminiAnalyzer) StreamCopilot(ctx context.Context, question string, telemetryContext string, onToken func(token string)) (*models.AIQuestionResponse, error) {
+	startTime := time.Now()
+
+	copilotSystem := `You are InaTEWS Sentinel's Disaster Intelligence Copilot.
+You answer emergency operators, field coordinators, and decision-makers clearly, concisely, and actionably in Indonesian (Bahasa Indonesia).
+Always ground your answers in the active streaming telemetry provided.
+Focus on safety, evacuation procedures, wave arrival calculations, and structural risk.`
+
+	prompt := fmt.Sprintf("TELEMETRI AKTIF:\n%s\n\nPERTANYAAN OPERATOR:\n%s\n\nBerikan jawaban taktis, lugas, dan terstruktur dalam Bahasa Indonesia:", telemetryContext, question)
+
+	if g.client == nil {
+		text := g.fallbackCopilot(question)
+		words := strings.Fields(text)
+		var full strings.Builder
+		for i, w := range words {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+			token := w
+			if i < len(words)-1 {
+				token += " "
+			}
+			onToken(token)
+			full.WriteString(token)
+			time.Sleep(20 * time.Millisecond)
+		}
+
+		return &models.AIQuestionResponse{
+			Answer:    full.String(),
+			Model:     g.ModelName(),
+			LatencyMs: time.Since(startTime).Milliseconds(),
+			Timestamp: time.Now(),
+		}, nil
+	}
+
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{
+				{Text: copilotSystem},
+			},
+		},
+		Temperature:     genai.Ptr(float32(0.4)),
+		MaxOutputTokens: 1024,
+	}
+
+	var fullText strings.Builder
+	for resp, err := range g.client.Models.GenerateContentStream(ctx, g.model, []*genai.Content{{Parts: []*genai.Part{{Text: prompt}}}}, config) {
+		if err != nil {
+			log.Printf("[WARN] Gemini stream error: %v", err)
+			break
+		}
+		if resp != nil && len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+			for _, part := range resp.Candidates[0].Content.Parts {
+				if part.Text != "" {
+					onToken(part.Text)
+					fullText.WriteString(part.Text)
+				}
+			}
+		}
+	}
+
+	if fullText.Len() == 0 {
+		text := g.fallbackCopilot(question)
+		onToken(text)
+		fullText.WriteString(text)
+	}
+
+	return &models.AIQuestionResponse{
+		Answer:    fullText.String(),
+		Model:     g.ModelName(),
+		LatencyMs: time.Since(startTime).Milliseconds(),
+		Timestamp: time.Now(),
+	}, nil
+}
+
 
 func (g *GeminiAnalyzer) fallbackCopilot(question string) string {
 	q := strings.ToLower(question)

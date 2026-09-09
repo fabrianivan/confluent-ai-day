@@ -22,6 +22,14 @@ type Config struct {
 	// Gemini AI
 	GeminiAPIKey string
 
+	// AWS Bedrock
+	AWSRegion         string
+	AWSAccessKeyID    string
+	AWSSecretAccessKey string
+	AWSSessionToken   string
+	AWSBedrockModelID string
+	AIProvider        string // "gemini", "bedrock", or "auto"
+
 	// Server
 	ServerPort string
 	CORSOrigin string
@@ -91,6 +99,12 @@ func Load() (*Config, error) {
 		SchemaRegistryKey:    os.Getenv("CONFLUENT_SR_API_KEY"),
 		SchemaRegistrySecret: os.Getenv("CONFLUENT_SR_API_SECRET"),
 		GeminiAPIKey:         os.Getenv("GEMINI_API_KEY"),
+		AWSRegion:            os.Getenv("AWS_REGION"),
+		AWSAccessKeyID:       os.Getenv("AWS_ACCESS_KEY_ID"),
+		AWSSecretAccessKey:   os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		AWSSessionToken:      os.Getenv("AWS_SESSION_TOKEN"),
+		AWSBedrockModelID:    os.Getenv("AWS_BEDROCK_MODEL_ID"),
+		AIProvider:           os.Getenv("AI_PROVIDER"),
 		ServerPort:           os.Getenv("SERVER_PORT"),
 		CORSOrigin:           os.Getenv("CORS_ORIGIN"),
 		DemoMode:             os.Getenv("DEMO_MODE") == "true" || os.Getenv("DEMO_MODE") == "1",
@@ -102,8 +116,17 @@ func Load() (*Config, error) {
 	if cfg.CORSOrigin == "" {
 		cfg.CORSOrigin = "http://localhost:3000"
 	}
+	if cfg.AWSRegion == "" {
+		cfg.AWSRegion = "us-east-1"
+	}
+	if cfg.AWSBedrockModelID == "" {
+		cfg.AWSBedrockModelID = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+	}
+	if cfg.AIProvider == "" {
+		cfg.AIProvider = "gemini"
+	}
 
-	// In Demo Mode, external Confluent / Gemini credentials are optional
+	// In Demo Mode, external Confluent / Gemini / Bedrock credentials are optional
 	if cfg.DemoMode {
 		return cfg, nil
 	}
@@ -118,8 +141,12 @@ func Load() (*Config, error) {
 	if cfg.KafkaAPISecret == "" {
 		return nil, fmt.Errorf("CONFLUENT_API_SECRET is required")
 	}
-	if cfg.GeminiAPIKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY is required")
+	if cfg.AIProvider == "bedrock" {
+		if cfg.AWSAccessKeyID == "" && os.Getenv("AWS_PROFILE") == "" && cfg.GeminiAPIKey == "" {
+			return nil, fmt.Errorf("AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) or GEMINI_API_KEY required")
+		}
+	} else if cfg.GeminiAPIKey == "" && cfg.AWSAccessKeyID == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY or AWS Bedrock credentials required (or set DEMO_MODE=true)")
 	}
 
 	return cfg, nil

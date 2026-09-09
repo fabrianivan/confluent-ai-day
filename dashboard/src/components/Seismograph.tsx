@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import type { VolcanoEruption } from '@/lib/types';
-import { INDONESIAN_VOLCANOES, findVolcanoLocation } from '@/lib/volcanoData';
+import {
+  INDONESIAN_VOLCANOES,
+  findVolcanoLocation,
+  getVolcanicAshTrajectory,
+  type VolcanicAshTrajectory,
+} from '@/lib/volcanoData';
 
 interface SeismographProps {
   seismicEnergy?: number; // mm/s
@@ -12,7 +17,19 @@ interface SeismographProps {
   selectedVolcano?: string | null;
   onSelectVolcano?: (name: string) => void;
   onInspectSeismogram?: (volcano: VolcanoEruption) => void;
+  isSimulasi?: boolean;
 }
+
+// Exactly the 7 station filter options requested
+export const SEISMOGRAPH_STATIONS = [
+  { id: 'BMKG_REGIONAL', label: '📡 BMKG Broadband (LEM / JATS)', isBMKG: true },
+  { id: 'Anak Krakatau', label: '🌋 Anak Krakatau', isBMKG: false },
+  { id: 'Ibu', label: '🌋 Ibu', isBMKG: false },
+  { id: 'Lewotobi Laki-laki', label: '🌋 Lewotobi Laki-laki', isBMKG: false },
+  { id: 'Ili Lewotolok', label: '🌋 Ili Lewotolok', isBMKG: false },
+  { id: 'Semeru', label: '🌋 Semeru', isBMKG: false },
+  { id: 'Merapi', label: '🌋 Merapi', isBMKG: false },
+];
 
 export default function Seismograph({
   seismicEnergy = 1.2,
@@ -22,6 +39,7 @@ export default function Seismograph({
   selectedVolcano = 'Anak Krakatau',
   onSelectVolcano,
   onInspectSeismogram,
+  isSimulasi = false,
 }: SeismographProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -49,6 +67,13 @@ export default function Seismograph({
       return geo.name.toLowerCase().includes(cleanErup) || cleanErup.includes(geo.name.toLowerCase());
     }) || null;
   }, [geo, volcanoes]);
+
+  // Volcanic Ash Trajectory for active volcano (or simulated default)
+  const ashTrajectory: VolcanicAshTrajectory = useMemo(() => {
+    const targetName = isBMKGMode ? 'Anak Krakatau' : activeTarget;
+    return getVolcanicAshTrajectory(targetName);
+  }, [isBMKGMode, activeTarget]);
+
 
   // Parse amplitude & duration
   const ampNum = useMemo(() => {
@@ -289,95 +314,347 @@ export default function Seismograph({
             LOKASI SEISMOGRAF:
           </span>
 
-          {/* BMKG Regional Option */}
-          <button
-            onClick={() => handleSelect('BMKG_REGIONAL')}
-            style={{
-              padding: '4px 9px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              background: isBMKGMode ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255, 255, 255, 0.04)',
-              border: `1px solid ${isBMKGMode ? '#00f2ff' : 'var(--border-subtle)'}`,
-              color: isBMKGMode ? '#00f2ff' : 'var(--text-secondary)',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            📡 BMKG Broadband (LEM / JATS)
-          </button>
-
-          {/* Quick Active Volcanoes */}
-          {INDONESIAN_VOLCANOES.slice(0, 6).map((v) => {
-            const isTarget = activeTarget === v.name;
-            const hasReport = volcanoes.some((e) =>
-              e.volcano_name.toLowerCase().includes(v.name.toLowerCase()) ||
-              v.name.toLowerCase().includes(e.volcano_name.toLowerCase())
-            );
+          {/* 7 Requested Filter Options */}
+          {SEISMOGRAPH_STATIONS.map((station) => {
+            const isSelected = activeTarget === station.id;
+            const hasReport =
+              !station.isBMKG &&
+              volcanoes.some(
+                (e) =>
+                  e.volcano_name.toLowerCase().includes(station.id.toLowerCase()) ||
+                  station.id.toLowerCase().includes(e.volcano_name.toLowerCase())
+              );
 
             return (
               <button
-                key={v.name}
-                onClick={() => handleSelect(v.name)}
+                key={station.id}
+                onClick={() => handleSelect(station.id)}
                 style={{
-                  padding: '4px 9px',
+                  padding: '5px 10px',
                   borderRadius: '6px',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: isSelected ? 800 : 600,
                   cursor: 'pointer',
-                  background: isTarget
-                    ? 'rgba(255, 87, 34, 0.2)'
+                  background: isSelected
+                    ? station.isBMKG
+                      ? 'rgba(0, 242, 255, 0.18)'
+                      : 'rgba(255, 87, 34, 0.22)'
                     : hasReport
                     ? 'rgba(255, 87, 34, 0.08)'
                     : 'rgba(255, 255, 255, 0.04)',
-                  border: `1px solid ${isTarget ? '#ff5722' : hasReport ? 'rgba(255, 87, 34, 0.4)' : 'var(--border-subtle)'}`,
-                  color: isTarget ? '#ff9800' : hasReport ? '#ff7043' : 'var(--text-secondary)',
+                  border: `1px solid ${
+                    isSelected
+                      ? station.isBMKG
+                        ? '#00f2ff'
+                        : '#ff5722'
+                      : hasReport
+                      ? 'rgba(255, 87, 34, 0.4)'
+                      : 'var(--border-subtle)'
+                  }`,
+                  color: isSelected
+                    ? station.isBMKG
+                      ? '#00f2ff'
+                      : '#ff9800'
+                    : hasReport
+                    ? '#ff7043'
+                    : 'var(--text-secondary)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px',
+                  gap: '5px',
+                  boxShadow: isSelected
+                    ? station.isBMKG
+                      ? '0 0 10px rgba(0, 242, 255, 0.3)'
+                      : '0 0 10px rgba(255, 87, 34, 0.3)'
+                    : 'none',
                   transition: 'all 0.2s ease',
                 }}
               >
-                <span>🌋 {v.name}</span>
+                <span>{station.label}</span>
                 {hasReport && (
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff2a5f' }}></span>
+                  <span
+                    style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff2a5f' }}
+                  ></span>
                 )}
               </button>
             );
           })}
         </div>
 
-        {/* Action Button: Analisis Citra Seismogram */}
-        {!isBMKGMode && (
-          <button
-            onClick={() => onInspectSeismogram?.(effectiveInspectionReport)}
+        {/* Action Button: Analisis Citra Seismogram PVMBG */}
+        <button
+          onClick={() => {
+            if (isBMKGMode) {
+              handleSelect('Anak Krakatau');
+            }
+            onInspectSeismogram?.(effectiveInspectionReport);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            fontSize: '11px',
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(0, 242, 255, 0.18))',
+            border: '1px solid rgba(168, 85, 247, 0.6)',
+            color: '#fff',
+            cursor: 'pointer',
+            boxShadow: '0 0 12px rgba(168, 85, 247, 0.35)',
+            transition: 'all 0.2s ease',
+          }}
+          title="Buka analisis citra rekaman seismogram PVMBG dan interpretasi fisis kawah"
+        >
+          <span>🔬</span>
+          <span>ANALISIS CITRA SEISMOGRAM PVMBG</span>
+          {liveReport?.image_url && (
+            <span
+              style={{
+                background: '#10b981',
+                color: '#fff',
+                fontSize: '9px',
+                padding: '1px 5px',
+                borderRadius: '4px',
+              }}
+            >
+              FOTO LIVE
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Volcanic Ash Dispersion & Trajectory Card when Eruption occurs or in Simulation */}
+      {(!isBMKGMode || isSimulasi || liveReport || isAwas || isSiaga) && (
+        <div
+          className="ash-trajectory-hud"
+          style={{
+            background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.16), rgba(185, 28, 28, 0.10))',
+            border: '1px solid rgba(249, 115, 22, 0.45)',
+            borderRadius: '8px',
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            boxShadow: '0 0 18px rgba(249, 115, 22, 0.15)',
+          }}
+        >
+          <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: 800,
-              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(0, 242, 255, 0.15))',
-              border: '1px solid rgba(168, 85, 247, 0.5)',
-              color: '#fff',
-              cursor: 'pointer',
-              boxShadow: '0 0 12px rgba(168, 85, 247, 0.3)',
-              transition: 'all 0.2s ease',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '8px',
             }}
-            title="Buka analisis citra rekaman seismogram PVMBG dan interpretasi fisis kawah"
           >
-            <span>🔬</span>
-            <span>ANALISIS CITRA SEISMOGRAM PVMBG</span>
-            {liveReport?.image_url && (
-              <span style={{ background: '#10b981', color: '#fff', fontSize: '9px', padding: '1px 5px', borderRadius: '4px' }}>
-                FOTO LIVE
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '16px' }}>💨</span>
+              <span
+                style={{
+                  fontWeight: 800,
+                  fontSize: '12px',
+                  color: '#ffedd5',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {isSimulasi
+                  ? 'SIMULASI SEBARAN & ARAH ABU VULKANIK (VONA ADVISORY)'
+                  : 'PROYEKSI SEBARAN & ARAH ABU VULKANIK (VONA ADVISORY)'}
               </span>
-            )}
-          </button>
-        )}
-      </div>
+              <span style={{ fontSize: '11px', color: '#fed7aa', fontWeight: 600 }}>
+                • Pos Pemantauan G. {ashTrajectory.volcanoName}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  background: ashTrajectory.vonaColorCode === 'RED' ? '#ef4444' : '#f97316',
+                  color: '#fff',
+                  boxShadow: '0 0 10px rgba(239, 68, 68, 0.5)',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                VONA: {ashTrajectory.vonaColorCode} ALERT
+              </span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                {isSimulasi ? 'DRILL SIMULASI' : 'MONITORING PVMBG'}
+              </span>
+            </div>
+          </div>
+
+          {/* 6 Telemetry Metrics including Eruption Duration & Ash Dispersion Duration */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '8px',
+            }}
+          >
+            {/* 1. Arah Abu Vulkanik */}
+            <div
+              style={{
+                background: 'rgba(6, 10, 20, 0.65)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(249, 115, 22, 0.25)',
+              }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                🧭 ARAH ABU VULKANIK:
+              </div>
+              <div
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: '#fb923c',
+                  marginTop: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>{ashTrajectory.windDirectionCardinal}</span>
+                <span style={{ color: '#fed7aa', fontSize: '11px' }}>
+                  ({ashTrajectory.windDirectionDeg}°)
+                </span>
+                <span style={{ fontSize: '14px' }}>↙</span>
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Arah pergerakan angin dominan
+              </div>
+            </div>
+
+            {/* 2. Perkiraan Durasi Erupsi */}
+            <div
+              style={{
+                background: 'rgba(6, 10, 20, 0.65)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(249, 115, 22, 0.25)',
+              }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                ⏱️ PERKIRAAN DURASI ERUPSI:
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f59e0b', marginTop: '2px' }}>
+                {liveReport?.duration ? `${liveReport.duration} (Fase Semburan)` : ashTrajectory.eruptionDurationEst}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Durasi getaran tremor letusan
+              </div>
+            </div>
+
+            {/* 3. Perkiraan Durasi Sebaran Abu */}
+            <div
+              style={{
+                background: 'rgba(6, 10, 20, 0.65)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(249, 115, 22, 0.25)',
+              }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                ⏳ PERKIRAAN DURASI SEBARAN:
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#38bdf8', marginTop: '2px' }}>
+                {ashTrajectory.ashDispersionDurationEst}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {ashTrajectory.totalHazardWindow}
+              </div>
+            </div>
+
+            {/* 4. Kecepatan Angin */}
+            <div
+              style={{
+                background: 'rgba(6, 10, 20, 0.65)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(249, 115, 22, 0.25)',
+              }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                💨 KECEPATAN ANGIN TROPOSFER:
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#fcd34d', marginTop: '2px' }}>
+                {ashTrajectory.windSpeedKts} knot{' '}
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                  (~{Math.round(ashTrajectory.windSpeedKts * 1.852)} km/j)
+                </span>
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Lapisan FL100 - FL180
+              </div>
+            </div>
+
+            {/* 5. Tinggi Kolom Erupsi */}
+            <div
+              style={{
+                background: 'rgba(6, 10, 20, 0.65)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(249, 115, 22, 0.25)',
+              }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                ⬆️ TINGGI KOLOM ERUPSI:
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f87171', marginTop: '2px' }}>
+                ±{ashTrajectory.plumeHeightMeters.toLocaleString('id-ID')} m dpl
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {ashTrajectory.plumeColor}
+              </div>
+            </div>
+
+            {/* 6. Radius Sebaran & Sektor Bahaya */}
+            <div
+              style={{
+                background: 'rgba(6, 10, 20, 0.65)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(249, 115, 22, 0.25)',
+              }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700 }}>
+                ⚠️ RADIUS SEBARAN BAHAYA:
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f43f5e', marginTop: '2px' }}>
+                Radius {ashTrajectory.hazardRadiusKm} km
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Sektor {ashTrajectory.windDirectionCardinal}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '6px',
+              fontSize: '11px',
+              color: '#fed7aa',
+              borderTop: '1px solid rgba(249, 115, 22, 0.2)',
+              paddingTop: '8px',
+            }}
+          >
+            <span>
+              ✈️ <strong>Koridor ATS Penerbangan:</strong> {ashTrajectory.affectedAviationRoute}
+            </span>
+            <span style={{ color: '#fdba74' }}>
+              📍 <strong>Sektor Terdampak:</strong> {ashTrajectory.sectorNotice}
+            </span>
+          </div>
+        </div>
+      )}
+
 
       {/* Seismograph Header & Metadata Bar */}
       <div className="seismograph__header" style={{ padding: '4px 0' }}>

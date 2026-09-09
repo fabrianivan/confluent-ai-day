@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LifecyclePhase, LiveEvent, RealtimeEarthquakesData, VolcanoEruption } from '@/lib/types';
-import { INDONESIAN_VOLCANOES, findVolcanoLocation } from '@/lib/volcanoData';
+import { INDONESIAN_VOLCANOES, findVolcanoLocation, getVolcanicAshTrajectory } from '@/lib/volcanoData';
 
 interface MapProps {
   activityLevel?: number;
   tsunamiActive?: boolean;
+  isSimulasi?: boolean;
   phase?: LifecyclePhase | null;
   events?: LiveEvent[];
   realQuakes?: RealtimeEarthquakesData | null;
@@ -22,7 +23,9 @@ interface MapProps {
 // Major Indonesian Tectonic & Fault Systems
 const FAULT_SYSTEMS = [
   {
-    name: 'Sunda Megathrust (Sumatra Segment)',
+    id: 'sundaMegathrust',
+    name: 'Sunda Megathrust (M8.2+)',
+    fullName: 'Sunda Megathrust (Sumatra Segment)',
     color: '#ff2a5f',
     coords: [
       [5.5, 93.5],
@@ -35,7 +38,9 @@ const FAULT_SYSTEMS = [
     ] as [number, number][],
   },
   {
-    name: 'Java Trench (South Java Megathrust)',
+    id: 'javaTrench',
+    name: 'Java Trench (M8.8)',
+    fullName: 'Java Trench (South Java Megathrust)',
     color: '#ff5722',
     coords: [
       [-6.8, 105.2],
@@ -47,7 +52,9 @@ const FAULT_SYSTEMS = [
     ] as [number, number][],
   },
   {
-    name: 'Palu-Koro Strike-Slip Fault',
+    id: 'paluKoro',
+    name: 'Palu-Koro Fault',
+    fullName: 'Palu-Koro Strike-Slip Fault',
     color: '#ffd600',
     coords: [
       [0.8, 119.6],
@@ -58,7 +65,9 @@ const FAULT_SYSTEMS = [
     ] as [number, number][],
   },
   {
+    id: 'bandaSubduction',
     name: 'Banda Subduction Arc & Flores Thrust',
+    fullName: 'Banda Subduction Arc & Flores Thrust',
     color: '#a855f7',
     coords: [
       [-8.2, 118.5],
@@ -69,7 +78,9 @@ const FAULT_SYSTEMS = [
     ] as [number, number][],
   },
   {
+    id: 'sorongFault',
     name: 'Sorong Transform Fault (Papua)',
+    fullName: 'Sorong Transform Fault (Papua)',
     color: '#00f2ff',
     coords: [
       [-1.2, 130.5],
@@ -109,6 +120,7 @@ const TSUNAMI_BUOYS = [
 export default function Map({
   activityLevel = 15,
   tsunamiActive = false,
+  isSimulasi = false,
   phase,
   events,
   realQuakes,
@@ -122,20 +134,32 @@ export default function Map({
   const mapRef = useRef<L.Map | null>(null);
   const quakeLayerRef = useRef<L.LayerGroup | null>(null);
   const volcanoLayerRef = useRef<L.LayerGroup | null>(null);
+  const ashLayerRef = useRef<L.LayerGroup | null>(null);
+  const sundaLayerRef = useRef<L.LayerGroup | null>(null);
+  const javaTrenchLayerRef = useRef<L.LayerGroup | null>(null);
+  const paluKoroLayerRef = useRef<L.LayerGroup | null>(null);
+  const otherFaultsLayerRef = useRef<L.LayerGroup | null>(null);
+  const stationLayerRef = useRef<L.LayerGroup | null>(null);
+  const buoyLayerRef = useRef<L.LayerGroup | null>(null);
   const latestMarkerRef = useRef<L.Marker | null>(null);
   const [mouseCoords, setMouseCoords] = useState<string>('0.00°S, 118.00°E');
+  const [isLegendCollapsed, setIsLegendCollapsed] = useState<boolean>(false);
   const [activeLayer, setActiveLayer] = useState<{
-    quakes: boolean;
+    sundaMegathrust: boolean;
+    javaTrench: boolean;
+    paluKoro: boolean;
+    volcanoes: boolean;
+    ash: boolean;
     stations: boolean;
     buoys: boolean;
-    faults: boolean;
-    volcanoes: boolean;
   }>({
-    quakes: true,
+    sundaMegathrust: true,
+    javaTrench: true,
+    paluKoro: true,
+    volcanoes: true,
+    ash: true,
     stations: true,
     buoys: true,
-    faults: true,
-    volcanoes: true,
   });
 
   // 1. Initialize Leaflet Map
@@ -186,24 +210,75 @@ export default function Map({
       setMouseCoords(`${latStr}, ${lonStr}`);
     });
 
-    // Plot Indonesian Active Fault Lines & Subduction Trenches
-    FAULT_SYSTEMS.forEach((fault) => {
-      const polyline = L.polyline(fault.coords, {
-        color: fault.color,
-        weight: 3.5,
-        opacity: 0.85,
+    // 1. Layer group for Sunda Megathrust (Sumatra Segment)
+    sundaLayerRef.current = L.layerGroup().addTo(map);
+    const sundaFault = FAULT_SYSTEMS.find((f) => f.id === 'sundaMegathrust');
+    if (sundaFault) {
+      L.polyline(sundaFault.coords, {
+        color: sundaFault.color,
+        weight: 4,
+        opacity: 0.9,
         dashArray: '8, 6',
-      }).addTo(map);
+      }).addTo(sundaLayerRef.current).bindPopup(`
+        <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
+          <strong style="color: ${sundaFault.color}; font-size: 13px;">⚡ ${sundaFault.name}</strong><br/>
+          <span style="font-size: 11px; color: #64748b;">${sundaFault.fullName} — Potensi Megathrust M8.2+</span>
+        </div>
+      `);
+    }
 
-      polyline.bindPopup(`
+    // 2. Layer group for Java Trench (South Java Megathrust)
+    javaTrenchLayerRef.current = L.layerGroup().addTo(map);
+    const javaFault = FAULT_SYSTEMS.find((f) => f.id === 'javaTrench');
+    if (javaFault) {
+      L.polyline(javaFault.coords, {
+        color: javaFault.color,
+        weight: 4,
+        opacity: 0.9,
+        dashArray: '8, 6',
+      }).addTo(javaTrenchLayerRef.current).bindPopup(`
+        <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
+          <strong style="color: ${javaFault.color}; font-size: 13px;">⚡ ${javaFault.name}</strong><br/>
+          <span style="font-size: 11px; color: #64748b;">${javaFault.fullName} — Potensi Megathrust M8.8</span>
+        </div>
+      `);
+    }
+
+    // 3. Layer group for Palu-Koro Strike-Slip Fault
+    paluKoroLayerRef.current = L.layerGroup().addTo(map);
+    const paluFault = FAULT_SYSTEMS.find((f) => f.id === 'paluKoro');
+    if (paluFault) {
+      L.polyline(paluFault.coords, {
+        color: paluFault.color,
+        weight: 4,
+        opacity: 0.9,
+        dashArray: '8, 6',
+      }).addTo(paluKoroLayerRef.current).bindPopup(`
+        <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
+          <strong style="color: ${paluFault.color}; font-size: 13px;">⚡ ${paluFault.name}</strong><br/>
+          <span style="font-size: 11px; color: #64748b;">${paluFault.fullName} — Sesar Geser Mendatar Aktif</span>
+        </div>
+      `);
+    }
+
+    // 4. Layer group for Other Regional Faults
+    otherFaultsLayerRef.current = L.layerGroup().addTo(map);
+    FAULT_SYSTEMS.filter((f) => !['sundaMegathrust', 'javaTrench', 'paluKoro'].includes(f.id)).forEach((fault) => {
+      L.polyline(fault.coords, {
+        color: fault.color,
+        weight: 3,
+        opacity: 0.75,
+        dashArray: '8, 6',
+      }).addTo(otherFaultsLayerRef.current!).bindPopup(`
         <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
           <strong style="color: ${fault.color}; font-size: 13px;">⚡ ${fault.name}</strong><br/>
-          <span style="font-size: 11px; color: #64748b;">Zona Subduksi & Sesar Aktif Utama Indonesia</span>
+          <span style="font-size: 11px; color: #64748b;">Zona Sesar Tektonik Regional Indonesia</span>
         </div>
       `);
     });
 
-    // Plot BMKG Seismic Stations
+    // 5. Layer group for BMKG Seismic Stations
+    stationLayerRef.current = L.layerGroup().addTo(map);
     SEISMIC_STATIONS.forEach((st) => {
       const stIcon = L.divIcon({
         className: 'station-marker',
@@ -218,7 +293,7 @@ export default function Map({
       });
 
       L.marker(st.pos, { icon: stIcon })
-        .addTo(map)
+        .addTo(stationLayerRef.current!)
         .bindPopup(`
           <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
             <strong style="font-size: 13px; color: #0284c7;">📡 Stasiun BMKG: ${st.id}</strong><br/>
@@ -228,7 +303,8 @@ export default function Map({
         `);
     });
 
-    // Plot InaTEWS DART Buoys
+    // 6. Layer group for InaTEWS DART Buoys
+    buoyLayerRef.current = L.layerGroup().addTo(map);
     TSUNAMI_BUOYS.forEach((buoy) => {
       const buoyIcon = L.divIcon({
         className: 'buoy-marker',
@@ -242,7 +318,7 @@ export default function Map({
       });
 
       L.marker(buoy.pos, { icon: buoyIcon })
-        .addTo(map)
+        .addTo(buoyLayerRef.current!)
         .bindPopup(`
           <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a;">
             <strong style="font-size: 13px; color: #0891b2;">🌊 ${buoy.id}</strong><br/>
@@ -256,6 +332,8 @@ export default function Map({
     quakeLayerRef.current = L.layerGroup().addTo(map);
     // Layer group for volcanoes
     volcanoLayerRef.current = L.layerGroup().addTo(map);
+    // Layer group for volcanic ash dispersion simulation
+    ashLayerRef.current = L.layerGroup().addTo(map);
 
     mapRef.current = map;
 
@@ -270,6 +348,34 @@ export default function Map({
       mapRef.current = null;
     };
   }, []);
+
+  // 1b. Reactive Layer Toggles for Faults, Stations & Buoys
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const toggle = (layerRef: React.RefObject<L.LayerGroup | null>, isActive: boolean) => {
+      const layer = layerRef.current;
+      if (!layer) return;
+      if (isActive) {
+        if (!map.hasLayer(layer)) layer.addTo(map);
+      } else {
+        if (map.hasLayer(layer)) map.removeLayer(layer);
+      }
+    };
+
+    toggle(sundaLayerRef, activeLayer.sundaMegathrust);
+    toggle(javaTrenchLayerRef, activeLayer.javaTrench);
+    toggle(paluKoroLayerRef, activeLayer.paluKoro);
+    toggle(stationLayerRef, activeLayer.stations);
+    toggle(buoyLayerRef, activeLayer.buoys);
+  }, [
+    activeLayer.sundaMegathrust,
+    activeLayer.javaTrench,
+    activeLayer.paluKoro,
+    activeLayer.stations,
+    activeLayer.buoys,
+  ]);
 
   // 2. Plot real earthquakes from BMKG & USGS
   useEffect(() => {
@@ -552,6 +658,143 @@ export default function Map({
     });
   }, [volcanoes, selectedVolcano, activeLayer.volcanoes, onSelectVolcano, onInspectVolcanoSeismogram]);
 
+  // 3.1 Plot Volcanic Ash Trajectory Dispersion Fan during Simulation
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = ashLayerRef.current;
+    if (!map || !layer) return;
+
+    layer.clearLayers();
+    if (!activeLayer.ash) return;
+
+    // Show ash plume if simulation is active OR if an active volcano is selected
+    const shouldShowAsh = isSimulasi || tsunamiActive || Boolean(selectedVolcano && selectedVolcano !== 'BMKG_REGIONAL');
+    if (!shouldShowAsh) return;
+
+    const targetName = (selectedVolcano && selectedVolcano !== 'BMKG_REGIONAL') ? selectedVolcano : 'Anak Krakatau';
+    const geo = findVolcanoLocation(targetName);
+    if (!geo) return;
+
+    const ash = getVolcanicAshTrajectory(targetName);
+    const [lat0, lon0] = geo.pos;
+
+    // Calculate fan polygon vertices
+    // Wind azimuth in degrees (0 = N, 90 = E, 180 = S, 270 = W)
+    const centerAngle = ash.windDirectionDeg;
+    const spread = ash.coneSpreadDeg || 45;
+    const halfSpread = spread / 2;
+    const radiusKm = ash.hazardRadiusKm || 35;
+    const radiusDegLat = radiusKm / 111; // 1 deg lat ~ 111 km
+    const cosLat = Math.max(0.2, Math.cos((lat0 * Math.PI) / 180));
+
+    const outerVertices: [number, number][] = [];
+    outerVertices.push([lat0, lon0]);
+
+    // Outer boundary arc points
+    const steps = 16;
+    for (let i = 0; i <= steps; i++) {
+      const angleDeg = (centerAngle - halfSpread) + (spread * (i / steps));
+      const rad = (angleDeg * Math.PI) / 180;
+      const dLat = radiusDegLat * Math.cos(rad);
+      const dLon = (radiusDegLat * Math.sin(rad)) / cosLat;
+      outerVertices.push([lat0 + dLat, lon0 + dLon]);
+    }
+    outerVertices.push([lat0, lon0]);
+
+    // Inner danger core zone (12 km)
+    const innerRadiusKm = Math.min(12, radiusKm * 0.45);
+    const innerRadiusDeg = innerRadiusKm / 111;
+    const innerVertices: [number, number][] = [];
+    innerVertices.push([lat0, lon0]);
+    for (let i = 0; i <= steps; i++) {
+      const angleDeg = (centerAngle - halfSpread * 0.8) + (spread * 0.8 * (i / steps));
+      const rad = (angleDeg * Math.PI) / 180;
+      const dLat = innerRadiusDeg * Math.cos(rad);
+      const dLon = (innerRadiusDeg * Math.sin(rad)) / cosLat;
+      innerVertices.push([lat0 + dLat, lon0 + dLon]);
+    }
+    innerVertices.push([lat0, lon0]);
+
+    // Outer dispersion polygon (Amber / Orange ash cloud)
+    const ashPolygon = L.polygon(outerVertices, {
+      color: '#ea580c',
+      weight: 2,
+      opacity: 0.85,
+      dashArray: '6, 4',
+      fillColor: '#f97316',
+      fillOpacity: 0.32,
+    }).addTo(layer);
+
+    // Inner core danger polygon (Dark Crimson ash surge)
+    const innerPolygon = L.polygon(innerVertices, {
+      color: '#dc2626',
+      weight: 2,
+      opacity: 0.9,
+      fillColor: '#b91c1c',
+      fillOpacity: 0.55,
+    }).addTo(layer);
+
+    // Popup for the ash dispersion cloud
+    const ashPopup = `
+      <div style="font-family: Inter, sans-serif; padding: 6px; color: #0f172a; min-width: 260px;">
+        <div style="background: #ea580c; color: white; padding: 4px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+          <span>💨 SEBARAN ABU VULKANIK</span>
+          <span style="background: ${ash.vonaColorCode === 'RED' ? '#b91c1c' : '#c2410c'}; padding: 1px 5px; border-radius: 3px; font-size: 9px;">VONA ${ash.vonaColorCode}</span>
+        </div>
+        <strong style="font-size: 13px; color: #0f172a;">Gunung ${geo.name}</strong><br/>
+        <div style="margin: 6px 0; font-size: 11px; line-height: 1.6; color: #334155;">
+          🧭 <strong>Arah Abu:</strong> ${ash.windDirectionCardinal} (${ash.windDirectionDeg}°)<br/>
+          ⏱️ <strong>Perkiraan Durasi Erupsi:</strong> ${ash.eruptionDurationEst}<br/>
+          ⏳ <strong>Perkiraan Durasi Sebaran:</strong> ${ash.ashDispersionDurationEst}<br/>
+          💨 <strong>Kecepatan Angin:</strong> ${ash.windSpeedKts} knot (~${Math.round(ash.windSpeedKts * 1.852)} km/j)<br/>
+          ⬆️ <strong>Tinggi Kolom:</strong> ±${ash.plumeHeightMeters.toLocaleString('id-ID')} m dpl<br/>
+          ⚠️ <strong>Radius Bahaya:</strong> ${ash.hazardRadiusKm} km (Sektor ${ash.windDirectionCardinal})<br/>
+          🕒 <strong>Jendela Siaga:</strong> ${ash.totalHazardWindow}<br/>
+          ✈️ <strong>Koridor ATS:</strong> ${ash.affectedAviationRoute}<br/>
+          📍 <strong>Sektor Terdampak:</strong> ${ash.sectorNotice}
+        </div>
+      </div>
+    `;
+    ashPolygon.bindPopup(ashPopup);
+    innerPolygon.bindPopup(ashPopup);
+
+    // Centerline wind vector arrows along trajectory
+    const centerRad = (centerAngle * Math.PI) / 180;
+    const arrowDistances = [radiusKm * 0.45, radiusKm * 0.85];
+    arrowDistances.forEach((dKm, idx) => {
+      const dDeg = dKm / 111;
+      const arrowLat = lat0 + dDeg * Math.cos(centerRad);
+      const arrowLon = lon0 + (dDeg * Math.sin(centerRad)) / cosLat;
+
+      const arrowIcon = L.divIcon({
+        className: 'ash-wind-arrow',
+        html: `
+          <div style="
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(15, 23, 42, 0.90);
+            border: 1px solid #f97316;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: #fed7aa;
+            font-size: 10px;
+            font-weight: 800;
+            white-space: nowrap;
+            box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+            pointer-events: none;
+          ">
+            <span>💨 ${idx === 0 ? `${ash.windSpeedKts} kts (${ash.windDirectionCardinal})` : `Durasi: ${ash.ashDispersionDurationEst}`} ➔</span>
+          </div>
+        `,
+        iconSize: [110, 24],
+        iconAnchor: [55, 12],
+      });
+
+      L.marker([arrowLat, arrowLon], { icon: arrowIcon, zIndexOffset: 700 }).addTo(layer);
+    });
+  }, [isSimulasi, tsunamiActive, selectedVolcano, activeLayer.ash]);
+
   // 4. Handle volcano selection camera flyTo
   useEffect(() => {
     if (!mapRef.current || !selectedVolcano) return;
@@ -608,40 +851,173 @@ export default function Map({
         }}
       />
 
-      {/* Floating Tactical Legend Overlay with Toggles */}
+      {/* Floating Tactical Legend Overlay with Toggles (INATEWS · SESAR · EPISENTER) */}
       <div className="map-hud-legend">
-        <div className="map-hud-legend__title">INATEWS · SESAR · EPISENTER</div>
-        <div className="map-hud-legend__item">
-          <span className="legend-dot" style={{ background: '#ff2a5f' }}></span>
-          <span>Sunda Megathrust (M8.2+)</span>
+        <div className="map-hud-legend__header">
+          <div className="map-hud-legend__title">
+            <span>⚡</span>
+            <span>INATEWS · SESAR · EPISENTER</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="map-hud-legend__badge">
+              {Object.values(activeLayer).filter(Boolean).length}/7
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const allActive = Object.values(activeLayer).every(Boolean);
+                setActiveLayer({
+                  sundaMegathrust: !allActive,
+                  javaTrench: !allActive,
+                  paluKoro: !allActive,
+                  volcanoes: !allActive,
+                  ash: !allActive,
+                  stations: !allActive,
+                  buoys: !allActive,
+                });
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#38bdf8',
+                fontSize: '10px',
+                cursor: 'pointer',
+                padding: '0 2px',
+                textDecoration: 'underline',
+                fontWeight: 600,
+              }}
+              title="Aktifkan / Sembunyikan Semua Layer"
+            >
+              {Object.values(activeLayer).every(Boolean) ? 'Reset' : 'Semua'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsLegendCollapsed(!isLegendCollapsed)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: 'var(--text-secondary)',
+                fontSize: '9px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                padding: '2px 5px',
+                lineHeight: 1,
+              }}
+              title={isLegendCollapsed ? 'Buka Legenda' : 'Ciutkan Legenda'}
+            >
+              {isLegendCollapsed ? '▲' : '▼'}
+            </button>
+          </div>
         </div>
-        <div className="map-hud-legend__item">
-          <span className="legend-dot" style={{ background: '#ff5722' }}></span>
-          <span>Java Trench (M8.8)</span>
-        </div>
-        <div className="map-hud-legend__item">
-          <span className="legend-dot" style={{ background: '#ffd600' }}></span>
-          <span>Palu-Koro Fault</span>
-        </div>
-        <div
-          className="map-hud-legend__item"
-          onClick={() => setActiveLayer((p) => ({ ...p, volcanoes: !p.volcanoes }))}
-          style={{ cursor: 'pointer' }}
-          title="Klik untuk menyembunyikan/menampilkan gunung api"
-        >
-          <span className="legend-dot" style={{ background: activeLayer.volcanoes ? '#ff5722' : 'var(--text-muted)' }}></span>
-          <span style={{ color: activeLayer.volcanoes ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: 700 }}>
-            🌋 Pos Seismik Gunung Api (PVMBG) {activeLayer.volcanoes ? '✓' : ''}
-          </span>
-        </div>
-        <div className="map-hud-legend__item">
-          <span className="legend-dot" style={{ background: '#00f2ff' }}></span>
-          <span>BMKG Broadband Station (LEM, JATS, etc.)</span>
-        </div>
-        <div className="map-hud-legend__item">
-          <span className="legend-dot" style={{ background: '#06b6d4' }}></span>
-          <span>InaTEWS / IOC Tide Buoys</span>
-        </div>
+
+        {!isLegendCollapsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {/* 1. Sunda Megathrust (M8.2+) */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.sundaMegathrust ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, sundaMegathrust: !p.sundaMegathrust }))}
+              title="Klik untuk menyembunyikan/menampilkan Sunda Megathrust"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-line" style={{ color: '#ff2a5f' }}></span>
+                <span style={{ color: activeLayer.sundaMegathrust ? '#fda4af' : 'var(--text-muted)', fontWeight: activeLayer.sundaMegathrust ? 700 : 500 }}>
+                  Sunda Megathrust (M8.2+)
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.sundaMegathrust ? 1 : 0 }}>✓</span>
+            </div>
+
+            {/* 2. Java Trench (M8.8) */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.javaTrench ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, javaTrench: !p.javaTrench }))}
+              title="Klik untuk menyembunyikan/menampilkan Java Trench"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-line" style={{ color: '#ff5722' }}></span>
+                <span style={{ color: activeLayer.javaTrench ? '#fdba74' : 'var(--text-muted)', fontWeight: activeLayer.javaTrench ? 700 : 500 }}>
+                  Java Trench (M8.8)
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.javaTrench ? 1 : 0 }}>✓</span>
+            </div>
+
+            {/* 3. Palu-Koro Fault */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.paluKoro ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, paluKoro: !p.paluKoro }))}
+              title="Klik untuk menyembunyikan/menampilkan Palu-Koro Fault"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-line" style={{ color: '#ffd600' }}></span>
+                <span style={{ color: activeLayer.paluKoro ? '#fef08a' : 'var(--text-muted)', fontWeight: activeLayer.paluKoro ? 700 : 500 }}>
+                  Palu-Koro Fault
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.paluKoro ? 1 : 0 }}>✓</span>
+            </div>
+
+            {/* 4. Pos Seismik Gunung Api (PVMBG) */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.volcanoes ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, volcanoes: !p.volcanoes }))}
+              title="Klik untuk menyembunyikan/menampilkan Pos Seismik Gunung Api PVMBG"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-dot" style={{ background: '#ff5722', color: '#ff5722' }}></span>
+                <span style={{ color: activeLayer.volcanoes ? '#ffedd5' : 'var(--text-muted)', fontWeight: activeLayer.volcanoes ? 700 : 500 }}>
+                  🌋 Pos Seismik Gunung Api (PVMBG)
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.volcanoes ? 1 : 0 }}>✓</span>
+            </div>
+
+            {/* 5. Sebaran Abu Vulkanik */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.ash ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, ash: !p.ash }))}
+              title="Klik untuk menyembunyikan/menampilkan Trajektori Sebaran Abu Vulkanik"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-dot" style={{ background: '#f97316', color: '#f97316' }}></span>
+                <span style={{ color: activeLayer.ash ? '#fed7aa' : 'var(--text-muted)', fontWeight: activeLayer.ash ? 700 : 500 }}>
+                  💨 Sebaran Abu Vulkanik {isSimulasi ? '(Simulasi)' : ''}
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.ash ? 1 : 0 }}>✓</span>
+            </div>
+
+            {/* 6. BMKG Broadband Station */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.stations ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, stations: !p.stations }))}
+              title="Klik untuk menyembunyikan/menampilkan Stasiun Seismik Broadband BMKG"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-dot" style={{ background: '#00f2ff', color: '#00f2ff' }}></span>
+                <span style={{ color: activeLayer.stations ? '#67e8f9' : 'var(--text-muted)', fontWeight: activeLayer.stations ? 700 : 500 }}>
+                  📡 BMKG Broadband Station (LEM, JATS, etc.)
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.stations ? 1 : 0 }}>✓</span>
+            </div>
+
+            {/* 7. InaTEWS / IOC Tide Buoys */}
+            <div
+              className={`map-hud-legend__item ${activeLayer.buoys ? 'map-hud-legend__item--active' : 'map-hud-legend__item--inactive'}`}
+              onClick={() => setActiveLayer((p) => ({ ...p, buoys: !p.buoys }))}
+              title="Klik untuk menyembunyikan/menampilkan InaTEWS / IOC Tide Buoys"
+            >
+              <div className="map-hud-legend__item-left">
+                <span className="legend-dot" style={{ background: '#06b6d4', color: '#06b6d4' }}></span>
+                <span style={{ color: activeLayer.buoys ? '#7dd3fc' : 'var(--text-muted)', fontWeight: activeLayer.buoys ? 700 : 500 }}>
+                  🌊 InaTEWS / IOC Tide Buoys
+                </span>
+              </div>
+              <span className="legend-check" style={{ opacity: activeLayer.buoys ? 1 : 0 }}>✓</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

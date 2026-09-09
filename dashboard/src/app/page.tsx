@@ -25,6 +25,7 @@ import OceanPanel from '@/components/OceanPanel';
 import GovernanceView from '@/components/GovernanceView';
 import SeismogramAnalysisModal from '@/components/SeismogramAnalysisModal';
 import VolcanoSeismographHub from '@/components/VolcanoSeismographHub';
+import WorkspaceNav, { WorkspaceTab } from '@/components/WorkspaceNav';
 
 const MapComponent = dynamic(() => import('@/components/Map'), {
   ssr: false,
@@ -169,6 +170,7 @@ export default function Home() {
   const [dashboardMode, setDashboardMode] = useState<'REAL' | 'SIMULASI'>('REAL');
   const [focusCoords, setFocusCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [connected, setConnected] = useState(false);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>('overview');
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const eventCounter = useRef(100);
@@ -345,119 +347,367 @@ export default function Home() {
         onModeChange={setDashboardMode}
       />
 
+      <WorkspaceNav
+        activeTab={activeWorkspaceTab}
+        onTabChange={setActiveWorkspaceTab}
+        aiModel={aiAnalysis?.model_used}
+        isDrill={dashboardMode === 'SIMULASI'}
+      />
+
       <main className="dashboard">
-        <p className="ops-disclaimer">
-          Decision-support untuk dampak cepat dan peringatan dini — bukan sistem prediksi gempa.
-        </p>
-
-        <TacticalRibbon
-          latestQuake={realQuakes?.latest_bmkg ?? null}
-          activityIndex={activityIndex}
-          status={status}
-          aiAnalysis={aiAnalysis}
-          stationCount={12}
-          tideCount={34}
-        />
-
-        {dashboardMode === 'SIMULASI' && (
-          <div className="drill-banner">
-            <strong>Latihan megathrust</strong>
-            <span>
-              Overlay skenario InaTEWS pada telemetri live. Flink tetap menghitung indeks intensitas
-              dari stream Kafka — ini bukan prediksi, melainkan drill respons.
-            </span>
-          </div>
-        )}
-
-        {dashboardMode === 'SIMULASI' && <TsunamiPanel scenario={drillScenario} />}
-
-        <div className="dashboard__main-grid">
-          <div className="dashboard__left-col">
-            <MapComponent
-              realQuakes={realQuakes}
-              focusCoords={focusCoords}
-              activityLevel={activity}
-              events={events}
-              volcanoes={volcanoes}
-              selectedVolcano={selectedVolcano}
-              onSelectVolcano={(name) => setSelectedVolcano(name)}
-              onInspectVolcanoSeismogram={(v) => setInspectingSeismogram(v)}
-              tsunamiActive={dashboardMode === 'SIMULASI' || Boolean(tsunami?.active)}
+        {/* ==================== TAB 1: OVERVIEW & PETA SITUASI ==================== */}
+        {activeWorkspaceTab === 'overview' && (
+          <>
+            <TacticalRibbon
+              latestQuake={realQuakes?.latest_bmkg ?? null}
+              activityIndex={activityIndex}
+              status={status}
+              aiAnalysis={aiAnalysis}
+              stationCount={12}
+              tideCount={34}
             />
 
-            <Seismograph
-              seismicEnergy={dashboardMode === 'SIMULASI' ? 8.4 : 1.2}
-              activityLevel={activity}
-              phaseName={dashboardMode === 'SIMULASI' ? 'MEGATHRUST_DRILL' : 'SEISMIC_BASELINE'}
-              volcanoes={volcanoes}
-              selectedVolcano={selectedVolcano}
-              onSelectVolcano={(name) => setSelectedVolcano(name)}
-              onInspectSeismogram={(v) => setInspectingSeismogram(v)}
-            />
-          </div>
-
-          <div className="sidebar">
-            <LatestQuakeCard
-              quake={realQuakes?.latest_bmkg ?? null}
-              onFocusMap={(lat, lon) => setFocusCoords({ lat, lon })}
-            />
-
-            <div className="card">
-              <div className="card__header">
-                <span className="card__title">Indeks Intensitas Seismik (MMI)</span>
-                <span className="card__badge card__badge--flink">FLINK SQL</span>
+            {dashboardMode === 'SIMULASI' && (
+              <div className="drill-banner">
+                <strong>Latihan Megathrust</strong>
+                <span>
+                  Skenario drill InaTEWS aktif di atas Kafka stream live. Flink SQL menghitung intensitas
+                  secara deterministik untuk pengujian kesiapsiagaan darurat nasional.
+                </span>
               </div>
-              <ActivityGauge percentage={activity} trend={trend} />
+            )}
+
+            {dashboardMode === 'SIMULASI' && <TsunamiPanel scenario={drillScenario} />}
+
+            <div className="dashboard__main-grid">
+              <div className="dashboard__left-col">
+                <MapComponent
+                  realQuakes={realQuakes}
+                  focusCoords={focusCoords}
+                  activityLevel={activity}
+                  events={events}
+                  volcanoes={volcanoes}
+                  selectedVolcano={selectedVolcano}
+                  onSelectVolcano={(name) => setSelectedVolcano(name)}
+                  onInspectVolcanoSeismogram={(v) => setInspectingSeismogram(v)}
+                  tsunamiActive={dashboardMode === 'SIMULASI' || Boolean(tsunami?.active)}
+                  isSimulasi={dashboardMode === 'SIMULASI'}
+                />
+
+                <Seismograph
+                  seismicEnergy={dashboardMode === 'SIMULASI' ? 8.4 : 1.2}
+                  activityLevel={activity}
+                  phaseName={dashboardMode === 'SIMULASI' ? 'MEGATHRUST_DRILL' : 'SEISMIC_BASELINE'}
+                  volcanoes={volcanoes}
+                  selectedVolcano={selectedVolcano}
+                  onSelectVolcano={(name) => setSelectedVolcano(name)}
+                  onInspectSeismogram={(v) => setInspectingSeismogram(v)}
+                  isSimulasi={dashboardMode === 'SIMULASI'}
+                />
+              </div>
+
+              <div className="sidebar">
+                <LatestQuakeCard
+                  quake={realQuakes?.latest_bmkg ?? null}
+                  onFocusMap={(lat, lon) => setFocusCoords({ lat, lon })}
+                />
+
+                <div className="card">
+                  <div className="card__header">
+                    <span className="card__title">Indeks Intensitas Seismik (MMI)</span>
+                    <span className="card__badge card__badge--flink">FLINK SQL</span>
+                  </div>
+                  <ActivityGauge percentage={activity} trend={trend} />
+                </div>
+
+                <MetricCards
+                  oceanStatus={
+                    dashboardMode === 'SIMULASI' || tsunami?.active
+                      ? 'TSUNAMI WAVE FRONT'
+                      : status?.ocean_status ?? 'IOC UNESCO LIVE'
+                  }
+                  weatherStatus={status?.weather_status ?? 'OPEN-METEO'}
+                  infraStatus={status?.infra_status ?? 'OPERASIONAL'}
+                  activityIndex={activityIndex}
+                />
+              </div>
             </div>
 
-            <MetricCards
-              oceanStatus={
-                dashboardMode === 'SIMULASI' || tsunami?.active
-                  ? 'TSUNAMI WAVE FRONT'
-                  : status?.ocean_status ?? 'IOC UNESCO LIVE'
-              }
-              weatherStatus={status?.weather_status ?? 'OPEN-METEO'}
-              infraStatus={status?.infra_status ?? 'OPERASIONAL'}
-              activityIndex={activityIndex}
-            />
-          </div>
-        </div>
+            {/* Live Stream & AI Sentinel Quick Gateway */}
+            <div className="dashboard__split" style={{ marginTop: '8px' }}>
+              <EventStream events={events} />
 
-        {aiAnalysis ? (
-          <AIPanel analysis={aiAnalysis} />
-        ) : (
-          <div className="card ops-placeholder">
-            <h3>Gemini Decision Support</h3>
-            <p>Menunggu inferensi risiko dari telemetri seismik aktif.</p>
-          </div>
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '0' }}>
+                <div>
+                  <div className="card__header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span className="card__title">
+                      <span>⚡</span>
+                      <span>Pusat Intelijen AI & Agen Streaming</span>
+                    </span>
+                    <span className="card__badge" style={{
+                      background: 'rgba(0, 242, 255, 0.12)',
+                      border: '1px solid #00f2ff',
+                      color: '#00f2ff',
+                      fontWeight: 800,
+                    }}>
+                      {aiAnalysis?.model_used || 'Bedrock & Gemini'}
+                    </span>
+                  </div>
+
+                  <div className="card__body" style={{ padding: '16px 20px' }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      color: aiAnalysis?.status === 'CRITICAL' ? '#ff2a5f' : aiAnalysis?.status === 'HIGH' ? '#ff9100' : '#00f2ff',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}>
+                      <span className="live-dot-pulse" style={{
+                        background: aiAnalysis?.status === 'CRITICAL' ? '#ff2a5f' : '#10b981',
+                        boxShadow: `0 0 8px ${aiAnalysis?.status === 'CRITICAL' ? '#ff2a5f' : '#10b981'}`,
+                      }} />
+                      <span>THREAT LEVEL: {aiAnalysis?.status || 'NORMAL MONITORING'}</span>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+                        (Confidence: {Math.round((aiAnalysis?.confidence || 0.95) * 100)}%)
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: '12.5px', color: '#cbd5e1', lineHeight: 1.65, marginBottom: '14px' }}>
+                      {aiAnalysis?.threat_summary || aiAnalysis?.assessment || 'InaTEWS Sentinel Intelligence terus mengamati aliran sensor real-time BMKG, buoy InaTEWS, dan Flink CEP secara berkelanjutan.'}
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '10px' }}>OODA Autonomous Loop</div>
+                        <div style={{ color: '#00f2ff', fontWeight: 700, marginTop: '2px' }}>✓ Aktif Mengamati Kafka</div>
+                      </div>
+                      <div style={{ background: 'rgba(15, 23, 42, 0.7)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '10px' }}>Multi-Agency Action</div>
+                        <div style={{ color: '#34d399', fontWeight: 700, marginTop: '2px' }}>✓ SOP BMKG, BNPB, SAR</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(6, 10, 20, 0.5)' }}>
+                  <button
+                    onClick={() => setActiveWorkspaceTab('ai')}
+                    style={{
+                      width: '100%',
+                      background: 'linear-gradient(135deg, rgba(0, 242, 255, 0.22), rgba(168, 85, 247, 0.28))',
+                      border: '1px solid #00f2ff',
+                      color: '#00f2ff',
+                      padding: '11px 18px',
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: 800,
+                      letterSpacing: '0.8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 242, 255, 0.4)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.transform = 'none';
+                    }}
+                  >
+                    <span>🤖</span>
+                    <span>BUKA PANEL AI SENTINEL & STREAMING AGENT LENGKAP</span>
+                    <span>→</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
-        <div className="dashboard__split">
-          <OceanPanel tsunami={dashboardMode === 'SIMULASI' ? drillScenario : tsunami} />
-          <EventStream events={events} />
-        </div>
+        {/* ==================== TAB 2: AI SENTINEL & STREAMING AGENT ==================== */}
+        {activeWorkspaceTab === 'ai' && (
+          <>
+            <TacticalRibbon
+              latestQuake={realQuakes?.latest_bmkg ?? null}
+              activityIndex={activityIndex}
+              status={status}
+              aiAnalysis={aiAnalysis}
+              stationCount={12}
+              tideCount={34}
+            />
 
-        <section className="platform-row">
-          <div className="platform-row__intro">
-            <h2>Spine streaming</h2>
-            <p>
-              Confluent Cloud mengorelasikan stasiun BMKG, buoy InaTEWS, dan feed laut lewat Flink
-              SQL. Schema Registry menjaga kontrak event untuk decision-support.
-            </p>
-          </div>
-          <FlinkPanel activityIndex={activityIndex} status={status} />
-          <GovernanceView />
-        </section>
+            {aiAnalysis ? (
+              <AIPanel analysis={aiAnalysis} />
+            ) : (
+              <div className="card ops-placeholder">
+                <h3>InaTEWS AI Decision Support</h3>
+                <p>Mempersiapkan inferensi risiko dari telemetri seismik aktif...</p>
+              </div>
+            )}
+          </>
+        )}
 
-        <details className="context-drawer">
-          <summary>Konteks gunung api PVMBG (lapisan pendukung, bukan misi utama)</summary>
+        {/* ==================== TAB 3: TSUNAMI & LAUT IOC ==================== */}
+        {activeWorkspaceTab === 'ocean' && (
+          <>
+            <TacticalRibbon
+              latestQuake={realQuakes?.latest_bmkg ?? null}
+              activityIndex={activityIndex}
+              status={status}
+              aiAnalysis={aiAnalysis}
+              stationCount={12}
+              tideCount={34}
+            />
+
+            {dashboardMode === 'SIMULASI' && <TsunamiPanel scenario={drillScenario} />}
+            <OceanPanel tsunami={dashboardMode === 'SIMULASI' ? drillScenario : tsunami} />
+          </>
+        )}
+
+        {/* ==================== TAB 4: CONFLUENT & FLINK CEP ==================== */}
+        {activeWorkspaceTab === 'stream' && (
+          <section className="platform-row">
+            <div className="platform-row__intro">
+              <h2>Spine Streaming (Confluent Cloud & Apache Flink)</h2>
+              <p>
+                Confluent Cloud mengorelasikan stasiun BMKG, buoy InaTEWS, dan feed laut lewat Flink
+                SQL. Schema Registry menjaga kontrak event untuk decision-support darurat nasional.
+              </p>
+            </div>
+            <FlinkPanel activityIndex={activityIndex} status={status} />
+            <GovernanceView />
+          </section>
+        )}
+
+        {/* ==================== TAB 5: VOLCANO HUB ==================== */}
+        {activeWorkspaceTab === 'volcano' && (
           <VolcanoSeismographHub
             volcanoes={volcanoes}
             selectedVolcano={selectedVolcano === 'BMKG_REGIONAL' ? 'Anak Krakatau' : selectedVolcano}
             onSelectVolcano={(name) => setSelectedVolcano(name)}
             onInspectSeismogram={(v) => setInspectingSeismogram(v)}
           />
-        </details>
+        )}
+
+        {/* ==================== TAB 6: ALL (PANORAMA LENGKAP) ==================== */}
+        {activeWorkspaceTab === 'all' && (
+          <>
+            <TacticalRibbon
+              latestQuake={realQuakes?.latest_bmkg ?? null}
+              activityIndex={activityIndex}
+              status={status}
+              aiAnalysis={aiAnalysis}
+              stationCount={12}
+              tideCount={34}
+            />
+
+            {dashboardMode === 'SIMULASI' && <TsunamiPanel scenario={drillScenario} />}
+
+            <div className="section-hero-title">
+              <h2><span>🗺️</span> 1. Peta Situasi & Seismograf Real-Time</h2>
+              <p>Jaringan stasiun broadband BMKG dan deformasi subduksi</p>
+            </div>
+
+            <div className="dashboard__main-grid">
+              <div className="dashboard__left-col">
+                <MapComponent
+                  realQuakes={realQuakes}
+                  focusCoords={focusCoords}
+                  activityLevel={activity}
+                  events={events}
+                  volcanoes={volcanoes}
+                  selectedVolcano={selectedVolcano}
+                  onSelectVolcano={(name) => setSelectedVolcano(name)}
+                  onInspectVolcanoSeismogram={(v) => setInspectingSeismogram(v)}
+                  tsunamiActive={dashboardMode === 'SIMULASI' || Boolean(tsunami?.active)}
+                  isSimulasi={dashboardMode === 'SIMULASI'}
+                />
+
+                <Seismograph
+                  seismicEnergy={dashboardMode === 'SIMULASI' ? 8.4 : 1.2}
+                  activityLevel={activity}
+                  phaseName={dashboardMode === 'SIMULASI' ? 'MEGATHRUST_DRILL' : 'SEISMIC_BASELINE'}
+                  volcanoes={volcanoes}
+                  selectedVolcano={selectedVolcano}
+                  onSelectVolcano={(name) => setSelectedVolcano(name)}
+                  onInspectSeismogram={(v) => setInspectingSeismogram(v)}
+                  isSimulasi={dashboardMode === 'SIMULASI'}
+                />
+              </div>
+
+              <div className="sidebar">
+                <LatestQuakeCard
+                  quake={realQuakes?.latest_bmkg ?? null}
+                  onFocusMap={(lat, lon) => setFocusCoords({ lat, lon })}
+                />
+
+                <div className="card">
+                  <div className="card__header">
+                    <span className="card__title">Indeks Intensitas Seismik (MMI)</span>
+                    <span className="card__badge card__badge--flink">FLINK SQL</span>
+                  </div>
+                  <ActivityGauge percentage={activity} trend={trend} />
+                </div>
+
+                <MetricCards
+                  oceanStatus={
+                    dashboardMode === 'SIMULASI' || tsunami?.active
+                      ? 'TSUNAMI WAVE FRONT'
+                      : status?.ocean_status ?? 'IOC UNESCO LIVE'
+                  }
+                  weatherStatus={status?.weather_status ?? 'OPEN-METEO'}
+                  infraStatus={status?.infra_status ?? 'OPERASIONAL'}
+                  activityIndex={activityIndex}
+                />
+              </div>
+            </div>
+
+            <div className="section-hero-title" style={{ marginTop: '24px' }}>
+              <h2><span>🤖</span> 2. AI Sentinel & Streaming Data Agent</h2>
+              <p>Dual LLM Engine (Bedrock & Gemini) dengan Continuous OODA Loop</p>
+            </div>
+
+            {aiAnalysis && <AIPanel analysis={aiAnalysis} />}
+
+            <div className="section-hero-title" style={{ marginTop: '24px' }}>
+              <h2><span>🌊</span> 3. Radar Muka Air Laut & Jaringan Pasut IOC</h2>
+              <p>Stasiun pasut pesisir dan DART Buoys deteksi tsunami</p>
+            </div>
+
+            <div className="dashboard__split">
+              <OceanPanel tsunami={dashboardMode === 'SIMULASI' ? drillScenario : tsunami} />
+              <EventStream events={events} />
+            </div>
+
+            <div className="section-hero-title" style={{ marginTop: '24px' }}>
+              <h2><span>⚡</span> 4. Flink Stream CEP & Tata Kelola Schema</h2>
+              <p>Confluent Cloud stream correlation and schema versioning</p>
+            </div>
+
+            <section className="platform-row">
+              <FlinkPanel activityIndex={activityIndex} status={status} />
+              <GovernanceView />
+            </section>
+
+            <div className="section-hero-title" style={{ marginTop: '24px' }}>
+              <h2><span>🌋</span> 5. Hub Spektrografi Seismik PVMBG</h2>
+              <p>Analisis gelombang frekuensi tinggi dan swarm vulkanik</p>
+            </div>
+
+            <VolcanoSeismographHub
+              volcanoes={volcanoes}
+              selectedVolcano={selectedVolcano === 'BMKG_REGIONAL' ? 'Anak Krakatau' : selectedVolcano}
+              onSelectVolcano={(name) => setSelectedVolcano(name)}
+              onInspectSeismogram={(v) => setInspectingSeismogram(v)}
+            />
+          </>
+        )}
       </main>
 
       {/* Seismogram Image & Physical Waveform Analysis Modal */}

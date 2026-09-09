@@ -1630,37 +1630,120 @@ body::before {
 /* ===== MAP HUD LEGEND ===== */
 .map-hud-legend {
   position: absolute;
-  bottom: 16px;
-  left: 16px;
+  bottom: 18px;
+  left: 18px;
   z-index: 1000;
-  background: rgba(13, 13, 22, 0.88);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
+  background: rgba(8, 12, 22, 0.94);
+  border: 1px solid rgba(0, 242, 255, 0.25);
+  border-radius: 8px;
   padding: 10px 14px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   pointer-events: auto;
   font-size: 11px;
   color: var(--text-primary);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 25px rgba(0, 242, 255, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
+  min-width: 255px;
+  max-width: 320px;
+  transition: all 0.25s ease;
+}
+
+.map-hud-legend__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  gap: 8px;
 }
 
 .map-hud-legend__title {
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1px;
-  color: var(--text-muted);
-  margin-bottom: 3px;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.map-hud-legend__badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: #00f2ff;
+  background: rgba(0, 242, 255, 0.12);
+  border: 1px solid rgba(0, 242, 255, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 .map-hud-legend__item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.map-hud-legend__item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateX(2px);
+}
+
+.map-hud-legend__item--active {
+  background: rgba(0, 242, 255, 0.06);
+  border-color: rgba(0, 242, 255, 0.18);
+}
+
+.map-hud-legend__item--inactive {
+  opacity: 0.45;
+}
+
+.map-hud-legend__item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.legend-line {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+  border-bottom: 2px dashed currentColor;
+}
+
+.legend-check {
+  font-size: 11px;
+  font-weight: 800;
+  color: #10b981;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dot {
@@ -3888,6 +3971,190 @@ body::before {
     padding: 6px 16px;
   }
 }
+
+/* ===== WORKSPACE NAV (MISSION CONTROL TABS) ===== */
+.workspace-nav {
+  position: sticky;
+  top: 0px;
+  z-index: 90;
+  background: rgba(5, 8, 16, 0.88);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 0;
+  margin-bottom: 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.workspace-nav__container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1760px;
+  margin: 0 auto;
+  gap: 16px;
+  padding: 0 4px;
+}
+
+.workspace-nav__scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.workspace-nav__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-nav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.65);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.workspace-nav__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 242, 255, 0.35);
+  color: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.workspace-nav__item--active {
+  background: linear-gradient(135deg, rgba(0, 242, 255, 0.18), rgba(59, 130, 246, 0.18)) !important;
+  border-color: #00f2ff !important;
+  color: #00f2ff !important;
+  box-shadow: 0 0 16px rgba(0, 242, 255, 0.25), inset 0 0 8px rgba(0, 242, 255, 0.08);
+}
+
+.workspace-nav__icon {
+  font-size: 14px;
+}
+
+.workspace-nav__label {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.workspace-nav__badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid;
+  letter-spacing: 0.4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.workspace-nav__drill-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  padding: 5px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ===== TACTICAL RIBBON CARD UPGRADES ===== */
+.ribbon-card__mag-badge {
+  width: 52px;
+  height: 46px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.ribbon-card__mag-badge--normal {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.ribbon-card__mag-badge--high {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
+}
+
+.ribbon-card__mag-badge--critical {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #ff2a5f;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.35);
+  animation: pulse-glow 1.5s infinite;
+}
+
+.ribbon-card__badge--bedrock {
+  background: rgba(255, 145, 0, 0.15);
+  color: #ff9100;
+  border: 1px solid rgba(255, 145, 0, 0.4);
+}
+
+.ribbon-card--threat {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  animation: pulse-border 2s infinite;
+}
+
+/* ===== MODERN CARD POLISH ===== */
+.card {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.card:hover {
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 242, 255, 0.15);
+}
+
+.section-hero-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 4px 2px;
+}
+
+.section-hero-title h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-hero-title p {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
 
 
 

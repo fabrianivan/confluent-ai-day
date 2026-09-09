@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"gempa-sentinel/internal/agent"
 	"gempa-sentinel/internal/ai"
 	"gempa-sentinel/internal/api"
 	"gempa-sentinel/internal/config"
@@ -44,11 +45,29 @@ func main() {
 	// Initialize SSE Hub
 	sseHub := hub.NewSSEHub()
 
-	// Initialize Gemini AI
-	analyzer, err := ai.NewGeminiAnalyzer(cfg.GeminiAPIKey)
+	// Initialize LLM Providers (Google Gemini & AWS Bedrock)
+	providers := make(map[string]ai.LLMProvider)
+
+	geminiAnalyzer, err := ai.NewGeminiAnalyzer(cfg.GeminiAPIKey)
 	if err != nil {
-		log.Fatalf("[FATAL] Failed to create Gemini analyzer: %v", err)
+		log.Printf("[WARN] Gemini analyzer initialization note: %v", err)
+	} else {
+		providers["gemini"] = geminiAnalyzer
 	}
+
+	bedrockProvider, err := ai.NewBedrockProvider(cfg)
+	if err != nil {
+		log.Printf("[WARN] Bedrock provider initialization note: %v", err)
+	} else {
+		providers["bedrock"] = bedrockProvider
+	}
+
+	pm := ai.NewProviderManager(cfg.AIProvider, providers)
+	log.Printf("[INFO] AI Provider Manager active: %s (model: %s, available: %v)",
+		pm.ActiveName(), pm.GetModelName(), pm.ListProviders())
+
+	// Initialize Autonomous Streaming Data Agent
+	streamingAgent := agent.NewStreamingDataAgent(pm, sseHub)
 
 	// Initialize Simulator (for on-demand drill/scenarios)
 	sim := simulator.NewSimulator(producer, sseHub)
@@ -57,17 +76,24 @@ func main() {
 	ingestor := realtime.NewIngestor(producer, sseHub)
 
 	// Initialize API Server
-	server := api.NewServer(sseHub, sim, analyzer, cfg.ServerPort, cfg.CORSOrigin)
+	server := api.NewServer(sseHub, sim, pm, streamingAgent, cfg.ServerPort, cfg.CORSOrigin)
 	server.SetIngestor(ingestor)
 
-	// Wire AI analysis trigger from real-time and simulator to server analyzer
-	sim.SetAnalysisTrigger(server.TriggerAIAnalysis)
-	ingestor.SetAnalysisTrigger(server.TriggerAIAnalysis)
+	// Wire AI analysis trigger from real-time and simulator to server analyzer and streaming agent
+	sim.SetAnalysisTrigger(func(idx models.ActivityIndex) {
+		streamingAgent.OnActivityIndex(idx)
+		server.TriggerAIAnalysis(idx)
+	})
+	ingestor.SetAnalysisTrigger(func(idx models.ActivityIndex) {
+		streamingAgent.OnActivityIndex(idx)
+		server.TriggerAIAnalysis(idx)
+	})
 
 	// Initialize Kafka consumer for Flink output topics
 	consumer, err := kafka.NewConsumer(cfg, kafka.ConsumerCallbacks{
 		OnActivity: func(idx models.ActivityIndex) {
 			sseHub.BroadcastAll("activity_index", idx)
+			streamingAgent.OnActivityIndex(idx)
 			// Trigger AI analysis on significant changes
 			if idx.OverallPercentage > 40 {
 				server.TriggerAIAnalysis(idx)
@@ -75,9 +101,11 @@ func main() {
 		},
 		OnAlert: func(alert models.CorrelatedAlert) {
 			sseHub.BroadcastAll("correlated_alert", alert)
+			streamingAgent.OnCorrelatedAlert(alert)
 		},
 		OnTsunami: func(ts models.TsunamiScenario) {
 			sseHub.BroadcastAll("tsunami", ts)
+			streamingAgent.OnTsunamiScenario(ts)
 		},
 	})
 	if err != nil {
@@ -87,6 +115,9 @@ func main() {
 	// Create a context that cancels on interrupt
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start the autonomous streaming data agent
+	streamingAgent.Start(ctx)
 
 	// Start the real-time API data ingestor (default live mode)
 	ingestor.Start(ctx)

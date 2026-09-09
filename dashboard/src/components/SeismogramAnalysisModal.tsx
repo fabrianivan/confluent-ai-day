@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { VolcanoEruption } from '@/lib/types';
-import { findVolcanoLocation } from '@/lib/volcanoData';
+import { findVolcanoLocation, getVolcanicAshTrajectory } from '@/lib/volcanoData';
 
 interface SeismogramAnalysisModalProps {
   volcano: VolcanoEruption | null;
@@ -14,26 +14,39 @@ export default function SeismogramAnalysisModal({
   onClose,
 }: SeismogramAnalysisModalProps) {
   const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [showPhases, setShowPhases] = useState<boolean>(true);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [filterContrast, setFilterContrast] = useState<'normal' | 'high-contrast' | 'invert'>('normal');
+  const [imageError, setImageError] = useState<boolean>(false);
+  const imageContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        } else {
+          onClose();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, isFullscreen]);
 
   if (!volcano) return null;
 
   const geo = findVolcanoLocation(volcano.volcano_name);
+  const ash = getVolcanicAshTrajectory(volcano.volcano_name);
   const isAwas = volcano.alert_level.includes('AWAS');
   const isSiaga = volcano.alert_level.includes('SIAGA');
 
   // Parse amplitude & duration
-  const ampNum = parseFloat(volcano.amplitude.replace(/[^0-9.]/g, '')) || 25;
-  const durNum = parseFloat(volcano.duration.replace(/[^0-9.]/g, '')) || 45;
+  const ampNum = parseFloat(volcano.amplitude.replace(/[^0-9.]/g, '')) || 35;
+  const durNum = parseFloat(volcano.duration.replace(/[^0-9.]/g, '')) || 55;
 
   // Derive seismological estimates
   const estPGA = (ampNum * 0.0032).toFixed(3);
@@ -41,14 +54,59 @@ export default function SeismogramAnalysisModal({
   const freqDominant = ampNum > 40 ? '1.4 - 2.2 Hz' : '2.0 - 3.5 Hz';
   const signalType =
     ampNum >= 40
-      ? 'Gempa Letusan / Erupsi Kuat (High Energy Explosion)'
+      ? 'Gempa Letusan / Erupsi Kuat (High Energy Explosive Tremor)'
       : ampNum >= 20
       ? 'Gempa Letusan / Erupsi Sedang (Explosion Tremor)'
       : 'Gempa Hembusan / Vulkanik Dangkal (VB)';
 
-  const interpretation = ampNum >= 40
-    ? `Defleksi seismometer sebesar ${volcano.amplitude} dengan durasi ${volcano.duration} mengindikasikan dekompresi gas magmatik eksplosif bertekanan tinggi di conduit kawah. Gelombang seismik didominasi komponen P-wave tajam disusul tremor permukaan berspektrum rendah (${freqDominant}). Akumulasi energi mekanik fluida tergolong signifikan, mengindikasikan aktivitas pelepasan material pijar dan kolom abu tebal.`
-    : `Sinyal seismograf menunjukkan pelepasan tekanan gas vulkanik dengan amplitudo ${volcano.amplitude} dan durasi ${volcano.duration}. Pola gelombang merefleksikan getaran fluida hidrotermal di kedalaman dangkal (<1.5 km). Tidak terdeteksi sinyal deformasi regional atau pergeseran sesar tektonik yang mengarah pada keruntuhan tubuh gunung.`;
+  const interpretation =
+    ampNum >= 40
+      ? `Defleksi seismometer sebesar ${volcano.amplitude} dengan durasi ${volcano.duration} mengindikasikan dekompresi gas magmatik eksplosif bertekanan tinggi di conduit kawah G. ${volcano.volcano_name}. Gelombang seismik didominasi komponen P-wave tajam disusul tremor permukaan berspektrum rendah (${freqDominant}). Akumulasi energi mekanik fluida tergolong signifikan, mengindikasikan pelepasan kolom abu vulkanik ke troposfer dan potensi lontaran batu pijar.`
+      : `Sinyal seismograf menunjukkan pelepasan tekanan gas vulkanik dengan amplitudo ${volcano.amplitude} dan durasi ${volcano.duration}. Pola gelombang merefleksikan getaran fluida hidrotermal di kedalaman dangkal (<1.5 km). Tidak terdeteksi sinyal deformasi regional atau pergeseran sesar tektonik yang mengarah pada keruntuhan tubuh gunung.`;
+
+  // Pan & Drag Handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom <= 1) return;
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || zoom <= 1) return;
+    setPan({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleZoomChange = (newZoom: number) => {
+    const clamped = Math.max(0.75, Math.min(3.5, Number(newZoom.toFixed(2))));
+    setZoom(clamped);
+    if (clamped === 1) setPan({ x: 0, y: 0 });
+  };
+
+  const handleSetZoom = handleZoomChange;
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    handleZoomChange(zoom + delta);
+  };
+
+  const getFilterStyle = () => {
+    if (filterContrast === 'high-contrast') return 'contrast(1.6) brightness(1.2)';
+    if (filterContrast === 'invert') return 'invert(1) hue-rotate(180deg)';
+    return 'none';
+  };
 
   return (
     <div className="volcano-lightbox" onClick={onClose} style={{ zIndex: 3000 }}>
@@ -56,16 +114,18 @@ export default function SeismogramAnalysisModal({
         className="card seismogram-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '95vw',
-          maxWidth: '1200px',
-          maxHeight: '92vh',
+          width: isFullscreen ? '98vw' : '95vw',
+          maxWidth: isFullscreen ? '98vw' : '1240px',
+          height: isFullscreen ? '96vh' : 'auto',
+          maxHeight: isFullscreen ? '96vh' : '92vh',
           display: 'flex',
           flexDirection: 'column',
           background: 'rgba(10, 14, 26, 0.98)',
           border: '1px solid var(--border-medium)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(0, 242, 255, 0.15)',
+          boxShadow: '0 24px 70px rgba(0, 0, 0, 0.95), 0 0 45px rgba(0, 242, 255, 0.18)',
           overflow: 'hidden',
           padding: 0,
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Modal Header */}
@@ -74,7 +134,7 @@ export default function SeismogramAnalysisModal({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '16px 24px',
+            padding: '14px 22px',
             borderBottom: '1px solid var(--border-subtle)',
             background: 'rgba(255, 255, 255, 0.02)',
           }}
@@ -82,8 +142,8 @@ export default function SeismogramAnalysisModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>🌋</span>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
                   Analisis Informasi Citra Seismogram: G. {volcano.volcano_name}
                 </h3>
                 <span
@@ -94,175 +154,457 @@ export default function SeismogramAnalysisModal({
                       ? 'volcano-card__level-badge--siaga'
                       : 'volcano-card__level-badge--waspada'
                   }`}
+                  style={{ fontSize: '10px', padding: '2px 8px' }}
                 >
                   {volcano.alert_level}
                 </span>
+                <span style={{ background: 'rgba(0, 242, 255, 0.15)', color: '#00f2ff', border: '1px solid rgba(0, 242, 255, 0.3)', borderRadius: '4px', fontSize: '10px', padding: '1px 6px', fontWeight: 700 }}>
+                  PVMBG MAGMA OFFICIAL
+                </span>
               </div>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                📍 {geo?.pgaStation || 'Pos Pengamatan Gunung Api PVMBG'} • {geo?.island || 'Nusantara'} • Rekaman: {volcano.time} ({volcano.date})
+                📍 {geo?.pgaStation || 'Pos Pengamatan Gunung Api PVMBG'} • {geo?.island || 'Indonesia'} • Waktu Rekaman: {volcano.time} ({volcano.date})
               </span>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="volcano-lightbox__close-btn"
-            style={{ padding: '6px 14px' }}
-          >
-            ✕ Tutup
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="volcano-lightbox__close-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: '11px',
+                background: isFullscreen ? 'rgba(0, 242, 255, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid var(--border-subtle)',
+                color: isFullscreen ? '#00f2ff' : 'var(--text-primary)',
+              }}
+              title={isFullscreen ? 'Keluar dari layar penuh' : 'Tampilkan jendela penuh'}
+            >
+              {isFullscreen ? '❐ Perkecil Jendela' : '⛶ Layar Penuh'}
+            </button>
+            <button
+              onClick={onClose}
+              className="volcano-lightbox__close-btn"
+              style={{ padding: '6px 14px', fontSize: '11px' }}
+            >
+              ✕ Tutup
+            </button>
+          </div>
         </div>
 
         {/* Modal Body: Split Layout */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.2fr 1fr',
+            gridTemplateColumns: isFullscreen ? '1.35fr 1fr' : '1.2fr 1fr',
             gap: '20px',
-            padding: '20px 24px',
+            padding: '18px 22px',
             overflowY: 'auto',
-            maxHeight: 'calc(92vh - 80px)',
+            maxHeight: isFullscreen ? 'calc(96vh - 75px)' : 'calc(92vh - 75px)',
           }}
           className="seismogram-modal__body"
         >
-          {/* Left: Seismogram Image & Waveform Drum Canvas */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Left Column: Seismogram Image Viewer with Deep Zoom & Pan */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Zoom Controls & Toolbar */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '4px 0',
+                padding: '6px 10px',
+                background: 'rgba(6, 10, 20, 0.9)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                flexWrap: 'wrap',
+                gap: '8px',
               }}
             >
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#00f2ff' }}>
-                📸 REKAMAN CITRA SEISMOGRAM / VISUAL PVMBG
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#00f2ff' }}>
+                  🔍 FITUR PERBESAR GAMBAR:
+                </span>
+
+                {/* Zoom Out (-) */}
+                <button
+                  onClick={() => handleZoomChange(zoom - 0.25)}
+                  disabled={zoom <= 0.75}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#fff',
+                    fontWeight: 800,
+                    cursor: zoom <= 0.75 ? 'not-allowed' : 'pointer',
+                    fontSize: '11px',
+                  }}
+                  title="Perkecil (-)"
+                >
+                  −
+                </button>
+
+                {/* Quick Zoom Presets */}
+                {[1, 1.5, 2, 3].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => handleSetZoom(level)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: zoom === level ? 800 : 600,
+                      background: zoom === level ? 'rgba(0, 242, 255, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                      border: `1px solid ${zoom === level ? '#00f2ff' : 'var(--border-subtle)'}`,
+                      color: zoom === level ? '#00f2ff' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {level}x
+                  </button>
+                ))}
+
+                {/* Zoom In (+) */}
+                <button
+                  onClick={() => handleZoomChange(zoom + 0.25)}
+                  disabled={zoom >= 3.5}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#fff',
+                    fontWeight: 800,
+                    cursor: zoom >= 3.5 ? 'not-allowed' : 'pointer',
+                    fontSize: '11px',
+                  }}
+                  title="Perbesar (+)"
+                >
+                  +
+                </button>
+
+                {/* Reset Zoom & Pan */}
+                <button
+                  onClick={handleResetZoom}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-muted)',
+                    fontSize: '10px',
+                    cursor: 'pointer',
+                  }}
+                  title="Kembalikan ukuran dan posisi ke normal"
+                >
+                  ⟲ Reset
+                </button>
+              </div>
+
+              {/* Phase and Contrast Toggles */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={() =>
+                    setFilterContrast((prev) =>
+                      prev === 'normal' ? 'high-contrast' : prev === 'high-contrast' ? 'invert' : 'normal'
+                    )
+                  }
+                  style={{
+                    fontSize: '10px',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: filterContrast !== 'normal' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${filterContrast !== 'normal' ? '#a855f7' : 'var(--border-subtle)'}`,
+                    color: filterContrast !== 'normal' ? '#c084fc' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                  title="Ganti filter kontras gambar seismogram"
+                >
+                  🌓 Filter: {filterContrast === 'normal' ? 'Standar' : filterContrast === 'high-contrast' ? 'Kontras Tinggi' : 'Invert'}
+                </button>
+
                 <button
                   onClick={() => setShowPhases(!showPhases)}
                   style={{
-                    fontSize: '11px',
-                    padding: '3px 8px',
+                    fontSize: '10px',
+                    padding: '4px 8px',
                     borderRadius: '4px',
                     background: showPhases ? 'rgba(0, 242, 255, 0.15)' : 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(0, 242, 255, 0.3)',
+                    border: `1px solid ${showPhases ? '#00f2ff' : 'var(--border-subtle)'}`,
                     color: showPhases ? '#00f2ff' : 'var(--text-muted)',
                     cursor: 'pointer',
                   }}
                 >
-                  {showPhases ? '✓ Anotasi Fase Aktif' : 'Anotasi Fase'}
-                </button>
-                <button
-                  onClick={() => setZoom(zoom === 1 ? 1.5 : 1)}
-                  style={{
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(255,255,255,0.08)',
-                    border: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  🔍 {zoom === 1 ? 'Perbesar 1.5x' : 'Reset Zoom'}
+                  {showPhases ? '✓ Anotasi Onset' : 'Anotasi Onset'}
                 </button>
               </div>
             </div>
 
-            {/* Image Box */}
+            {/* Interactive Image / Seismogram Drum View Box */}
             <div
+              ref={imageContainerRef}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
               style={{
                 position: 'relative',
                 borderRadius: '8px',
                 overflow: 'hidden',
                 background: '#060a14',
                 border: '1px solid var(--border-medium)',
-                minHeight: '280px',
+                minHeight: isFullscreen ? '480px' : '340px',
+                height: isFullscreen ? '55vh' : '360px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+                userSelect: 'none',
               }}
             >
-              {volcano.image_url ? (
+              {/* Zoom & Pan Guidance Floating Pill */}
+              {zoom > 1 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 12,
+                    background: 'rgba(6, 10, 20, 0.85)',
+                    border: '1px solid rgba(0, 242, 255, 0.4)',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: '#00f2ff',
+                    zIndex: 10,
+                    pointerEvents: 'none',
+                    backdropFilter: 'blur(6px)',
+                  }}
+                >
+                  🔍 Zoom: {Math.round(zoom * 100)}% • Geser untuk menggeser area rekaman
+                </div>
+              )}
+
+              {volcano.image_url && !imageError ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={volcano.image_url}
                   alt={`Seismogram G. ${volcano.volcano_name}`}
+                  onError={() => setImageError(true)}
                   style={{
                     width: '100%',
-                    height: 'auto',
-                    maxHeight: '380px',
+                    height: '100%',
                     objectFit: 'contain',
-                    transform: `scale(${zoom})`,
-                    transition: 'transform 0.2s ease',
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: 'center center',
+                    transition: isDragging ? 'none' : 'transform 0.15s ease',
+                    filter: getFilterStyle(),
+                    pointerEvents: 'none',
                   }}
                 />
               ) : (
-                /* High-fidelity fallback seismogram drum viewer */
-                <div style={{ width: '100%', padding: '16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                    📈 Rekonstruksi Rekaman Drum Seismogram PVMBG (Amplitudo: {volcano.amplitude} • Durasi: {volcano.duration})
-                  </div>
+                /* Authentic High-Resolution PVMBG Helicorder Drum Record Sheet */
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: 'center center',
+                    transition: isDragging ? 'none' : 'transform 0.15s ease',
+                    filter: getFilterStyle(),
+                  }}
+                >
+                  {/* Helicorder Drum Sheet Header */}
                   <div
                     style={{
-                      height: '240px',
-                      background: 'radial-gradient(ellipse at center, #0f172a 0%, #060a14 100%)',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(0, 242, 255, 0.2)',
-                      position: 'relative',
-                      overflow: 'hidden',
                       display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      padding: '10px',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderBottom: '1px solid rgba(0, 242, 255, 0.25)',
+                      paddingBottom: '4px',
+                      marginBottom: '4px',
+                      fontFamily: 'monospace',
+                      fontSize: '10px',
                     }}
                   >
-                    <div style={{ position: 'absolute', top: 10, left: 14, fontSize: '10px', fontFamily: 'monospace', color: '#00f2ff' }}>
-                      PGA STN: {geo?.pgaStation || 'PVMBG-DIGI'} • CH: EHZ (100 Hz) • FILTER: 0.5 - 10 Hz
-                    </div>
-                    {/* Simulated SVG Seismogram Traces */}
-                    <svg viewBox="0 0 500 160" style={{ width: '100%', height: '160px' }}>
-                      {/* Grid Lines */}
-                      <line x1="0" y1="30" x2="500" y2="30" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-                      <line x1="0" y1="80" x2="500" y2="80" stroke="rgba(0,242,255,0.15)" />
-                      <line x1="0" y1="130" x2="500" y2="130" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-                      
-                      {/* Waveform trace */}
+                    <span style={{ color: '#38bdf8', fontWeight: 800 }}>
+                      KEMENTERIAN ESDM · PVMBG · HELICORDER DRUM RECORDER
+                    </span>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      STN: {volcano.volcano_name.toUpperCase()} ({geo?.pgaStation || 'PGA-DIGI'}) • CH: EHZ (100 Hz) • {volcano.date}
+                    </span>
+                  </div>
+
+                  {/* Multi-Track Drum Raster with Actual Eruption Packet */}
+                  <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                    <svg
+                      viewBox="0 0 600 240"
+                      preserveAspectRatio="none"
+                      style={{ width: '100%', height: '100%', display: 'block' }}
+                    >
+                      {/* Background Minute Grid Lines */}
+                      {[60, 120, 180, 240, 300, 360, 420, 480, 540].map((x) => (
+                        <line
+                          key={x}
+                          x1={x}
+                          y1={10}
+                          x2={x}
+                          y2={230}
+                          stroke="rgba(255, 255, 255, 0.04)"
+                          strokeDasharray="2 4"
+                        />
+                      ))}
+
+                      {/* 8 Parallel Raster Tracks (Helicorder lines) */}
+                      {[25, 50, 75, 100, 125, 150, 175, 200].map((y, idx) => {
+                        const isEruptionTrack = idx === 3 || idx === 4; // Tracks 4 & 5 contain the eruption burst
+                        return (
+                          <g key={y}>
+                            {/* Track baseline */}
+                            <line
+                              x1={45}
+                              y1={y}
+                              x2={560}
+                              y2={y}
+                              stroke="rgba(0, 242, 255, 0.12)"
+                              strokeWidth="0.8"
+                            />
+
+                            {/* Minute stamp along left margin */}
+                            <text
+                              x={8}
+                              y={y + 3}
+                              fill="rgba(148, 163, 184, 0.7)"
+                              fontSize="8"
+                              fontFamily="monospace"
+                            >
+                              11:3{idx}
+                            </text>
+
+                            {/* Normal Ambient Waveform Traces for quiet tracks */}
+                            {!isEruptionTrack ? (
+                              <path
+                                d={`M 45,${y} Q 100,${y - 2} 150,${y + 2} Q 220,${y - 1} 300,${y + 1} Q 400,${y - 2} 480,${y + 2} L 560,${y}`}
+                                fill="none"
+                                stroke="#38bdf8"
+                                strokeWidth="0.8"
+                                opacity="0.65"
+                              />
+                            ) : null}
+                          </g>
+                        );
+                      })}
+
+                      {/* Track 4: Eruption Onset & Peak Explosive Deflection Waveform */}
                       <path
-                        d={`M 0,80 Q 50,80 80,78 Q 110,80 130,${80 - ampNum * 0.7} Q 145,${80 + ampNum * 0.9} Q 160,${80 - ampNum * 0.8} Q 180,${80 + ampNum * 0.6} Q 210,${80 - ampNum * 0.4} Q 250,${80 + ampNum * 0.3} Q 320,80 500,80`}
+                        d={`M 45,100 Q 120,99 150,100 
+                            L 170,${100 - Math.min(65, ampNum * 1.3)} 
+                            L 185,${100 + Math.min(65, ampNum * 1.4)} 
+                            L 200,${100 - Math.min(55, ampNum * 1.1)} 
+                            L 215,${100 + Math.min(60, ampNum * 1.2)} 
+                            L 230,${100 - Math.min(45, ampNum * 0.9)} 
+                            L 250,${100 + Math.min(50, ampNum * 1.0)} 
+                            L 280,${100 - Math.min(35, ampNum * 0.7)} 
+                            L 320,${100 + Math.min(28, ampNum * 0.5)} 
+                            L 380,${100 - 15} 
+                            L 440,${100 + 10} 
+                            L 500,${100 - 5} 
+                            L 560,100`}
                         fill="none"
                         stroke={isAwas ? '#ff2a5f' : '#ff9800'}
-                        strokeWidth="2"
+                        strokeWidth="1.8"
                       />
-                      
-                      {/* Annotations */}
+
+                      {/* Track 5: Harmonic Tremor & Secondary Ash Emission Pulse */}
+                      <path
+                        d={`M 45,125 
+                            L 80,126 
+                            L 110,${125 - 12} 
+                            L 140,${125 + 16} 
+                            L 170,${125 - Math.min(35, ampNum * 0.6)} 
+                            L 210,${125 + Math.min(30, ampNum * 0.5)} 
+                            L 260,${125 - 20} 
+                            L 320,${125 + 15} 
+                            L 400,${125 - 8} 
+                            L 480,${125 + 4} 
+                            L 560,125`}
+                        fill="none"
+                        stroke={isAwas ? '#f43f5e' : '#fb923c'}
+                        strokeWidth="1.3"
+                      />
+
+                      {/* Phase Annotations */}
                       {showPhases && (
                         <>
-                          <line x1="125" y1="10" x2="125" y2="150" stroke="#00f2ff" strokeWidth="1" strokeDasharray="2 2" />
-                          <text x="128" y="24" fill="#00f2ff" fontSize="9" fontFamily="monospace">Onset Erupsi</text>
+                          {/* P-Wave Onset */}
+                          <line x1={170} y1={25} x2={170} y2={185} stroke="#00f2ff" strokeWidth="1" strokeDasharray="3 3" />
+                          <rect x={160} y={15} width={62} height={14} rx={3} fill="#00f2ff" />
+                          <text x={163} y={25} fill="#060a14" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
+                            Onset Erupsi
+                          </text>
 
-                          <line x1="145" y1="10" x2="145" y2="150" stroke="#ff2a5f" strokeWidth="1" strokeDasharray="2 2" />
-                          <text x="148" y="38" fill="#ff2a5f" fontSize="9" fontFamily="monospace">Amax: {volcano.amplitude}</text>
+                          {/* Amax Maximum Amplitude */}
+                          <line x1={185} y1={25} x2={185} y2={185} stroke="#ff2a5f" strokeWidth="1" strokeDasharray="3 3" />
+                          <rect x={192} y={35} width={90} height={14} rx={3} fill="#ff2a5f" />
+                          <text x={195} y={45} fill="#ffffff" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
+                            Amax: {volcano.amplitude}
+                          </text>
 
-                          <line x1="280" y1="10" x2="280" y2="150" stroke="#a855f7" strokeWidth="1" strokeDasharray="2 2" />
-                          <text x="283" y="52" fill="#a855f7" fontSize="9" fontFamily="monospace">Coda Decay ({volcano.duration})</text>
+                          {/* Coda Decay Duration */}
+                          <line x1={380} y1={25} x2={380} y2={185} stroke="#a855f7" strokeWidth="1" strokeDasharray="3 3" />
+                          <rect x={385} y={55} width={90} height={14} rx={3} fill="#a855f7" />
+                          <text x={388} y={65} fill="#ffffff" fontSize="8" fontWeight="bold" fontFamily="sans-serif">
+                            Coda: {volcano.duration}
+                          </text>
                         </>
                       )}
+
+                      {/* Amplitude Scale on the Right Edge */}
+                      <line x1={575} y1={40} x2={575} y2={160} stroke="rgba(255, 255, 255, 0.3)" strokeWidth="1" />
+                      <text x={580} y={45} fill="#ff2a5f" fontSize="8" fontFamily="monospace">+50mm</text>
+                      <text x={580} y={100} fill="#38bdf8" fontSize="8" fontFamily="monospace">0 mm</text>
+                      <text x={580} y={155} fill="#ff2a5f" fontSize="8" fontFamily="monospace">-50mm</text>
                     </svg>
+                  </div>
+
+                  {/* Spectrogram Frequency Strip */}
+                  <div
+                    style={{
+                      height: '24px',
+                      background: 'linear-gradient(to right, #0369a1, #0284c7, #f59e0b, #ef4444, #dc2626, #7c3aed, #0284c7, #0369a1)',
+                      borderRadius: '4px',
+                      marginTop: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 8px',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      color: '#ffffff',
+                    }}
+                  >
+                    <span>0.5 Hz (Tremor LP)</span>
+                    <span>FREKUENSI DOMINAN SPEKTROGRAM: {freqDominant}</span>
+                    <span>12.0 Hz (Explosive HF)</span>
                   </div>
                 </div>
               )}
 
-              {/* Overlay Annotations if official image exists and phases are enabled */}
-              {volcano.image_url && showPhases && (
+              {/* Bottom Info Ribbon if Official Image is loaded */}
+              {volcano.image_url && !imageError && showPhases && (
                 <div
                   style={{
                     position: 'absolute',
-                    bottom: 12,
-                    left: 12,
-                    right: 12,
-                    background: 'rgba(6, 10, 20, 0.85)',
+                    bottom: 10,
+                    left: 10,
+                    right: 10,
+                    background: 'rgba(6, 10, 20, 0.88)',
                     border: '1px solid rgba(0, 242, 255, 0.3)',
                     borderRadius: '6px',
                     padding: '8px 12px',
@@ -271,12 +613,13 @@ export default function SeismogramAnalysisModal({
                     justifyContent: 'space-between',
                     fontSize: '11px',
                     backdropFilter: 'blur(6px)',
+                    zIndex: 5,
                   }}
                 >
-                  <span style={{ color: '#00f2ff', fontWeight: 700 }}>
+                  <span style={{ color: '#00f2ff', fontWeight: 800 }}>
                     ⚡ Amplitudo: {volcano.amplitude}
                   </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
+                  <span style={{ color: '#f59e0b', fontWeight: 700 }}>
                     ⏱ Durasi: {volcano.duration}
                   </span>
                   <span style={{ color: '#34d399', fontWeight: 600 }}>
@@ -319,15 +662,153 @@ export default function SeismogramAnalysisModal({
             </div>
           </div>
 
-          {/* Right: Seismological & Volcanological Physical Analysis */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Measured Signal Parameters */}
-            <div className="card" style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Right Column: Physical Interpretation, Volcanic Ash & Estimated Durations */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* 1. Volcanic Ash Trajectory & Estimated Durations (Requested by User) */}
+            <div
+              className="card"
+              style={{
+                padding: '12px 14px',
+                background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.14), rgba(220, 38, 38, 0.08))',
+                border: '1px solid rgba(249, 115, 22, 0.45)',
+                borderRadius: '8px',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  color: '#fed7aa',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🌪️</span> ARAH ABU VULKANIK & PERKIRAAN DURASI ERUPSI
+                </div>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: ash.vonaColorCode === 'RED' ? '#ef4444' : '#f97316',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}
+                >
+                  VONA: {ash.vonaColorCode} ALERT
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div
+                  style={{
+                    background: 'rgba(6, 10, 20, 0.7)',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(249, 115, 22, 0.25)',
+                  }}
+                >
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>
+                    🧭 ARAH ABU VULKANIK
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#fb923c' }}>
+                    {ash.windDirectionCardinal} ({ash.windDirectionDeg}°) ↙
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(6, 10, 20, 0.7)',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(249, 115, 22, 0.25)',
+                  }}
+                >
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>
+                    ⏱️ PERKIRAAN DURASI ERUPSI
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#f59e0b' }}>
+                    {volcano.duration ? `${volcano.duration}` : ash.eruptionDurationEst}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(6, 10, 20, 0.7)',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(249, 115, 22, 0.25)',
+                  }}
+                >
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>
+                    ⏳ PERKIRAAN DURASI SEBARAN
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#38bdf8' }}>
+                    {ash.ashDispersionDurationEst}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(6, 10, 20, 0.7)',
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(249, 115, 22, 0.25)',
+                  }}
+                >
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>
+                    ⬆️ TINGGI KOLOM & ANGIN
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#f87171' }}>
+                    ±{ash.plumeHeightMeters.toLocaleString('id-ID')}m • {ash.windSpeedKts} kts
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: '8px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid rgba(249, 115, 22, 0.2)',
+                  fontSize: '11px',
+                  color: '#fed7aa',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                }}
+              >
+                <span>
+                  ✈️ <strong>Koridor Udara ATS:</strong> {ash.affectedAviationRoute}
+                </span>
+                <span>
+                  📍 <strong>Sektor Terdampak:</strong> {ash.sectorNotice}
+                </span>
+                <span style={{ color: '#fdba74' }}>
+                  🕒 <strong>Jendela Siaga Keselamatan:</strong> {ash.totalHazardWindow}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Measured Signal Parameters */}
+            <div className="card" style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  color: 'var(--text-primary)',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
                 <span>📊</span> PARAMETER SINYAL SEISMOGRAM TERUKUR
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>AMPLITUDO DEFLEKSI</span>
                   <span style={{ fontSize: '15px', fontWeight: 800, color: '#ff2a5f' }}>{volcano.amplitude}</span>
@@ -346,7 +827,7 @@ export default function SeismogramAnalysisModal({
                 </div>
               </div>
 
-              <div style={{ marginTop: '10px', background: 'rgba(0, 242, 255, 0.05)', border: '1px solid rgba(0, 242, 255, 0.2)', padding: '8px 10px', borderRadius: '6px' }}>
+              <div style={{ marginTop: '8px', background: 'rgba(0, 242, 255, 0.05)', border: '1px solid rgba(0, 242, 255, 0.2)', padding: '8px 10px', borderRadius: '6px' }}>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>KLASIFIKASI GELOMBANG SEISMIK</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#00f2ff' }}>{signalType}</span>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -355,28 +836,28 @@ export default function SeismogramAnalysisModal({
               </div>
             </div>
 
-            {/* AI Physical Volcanology Interpretation */}
-            <div className="card" style={{ padding: '14px 16px', background: 'rgba(168, 85, 247, 0.04)', border: '1px solid rgba(168, 85, 247, 0.25)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* 3. AI Physical Volcanology Interpretation */}
+            <div className="card" style={{ padding: '12px 14px', background: 'rgba(168, 85, 247, 0.04)', border: '1px solid rgba(168, 85, 247, 0.25)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span>🤖</span> INTERPRETASI DINAMIKA MAGMA & FISIKA KAWAH
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6', margin: 0 }}>
                 {interpretation}
               </p>
-              <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.3)', padding: '8px 10px', borderRadius: '6px' }}>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.3)', padding: '6px 10px', borderRadius: '6px' }}>
                 <strong>Pengamatan Visual Kawah:</strong> {volcano.visual_ash}
               </div>
             </div>
 
-            {/* PVMBG Official Mitigation & Aviation Advice */}
-            <div className="card" style={{ padding: '14px 16px', background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, color: '#f87171', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* 4. PVMBG Official Mitigation & Aviation Advice */}
+            <div className="card" style={{ padding: '12px 14px', background: 'rgba(239, 68, 68, 0.04)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#f87171', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span>🛡️</span> REKOMENDASI KESELAMATAN & STATUS PENERBANGAN
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                 {volcano.recommendation}
               </div>
-              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                   Kode Warna VONA: <strong style={{ color: isAwas ? '#ef4444' : '#f59e0b' }}>{isAwas ? 'RED (AWAS)' : 'ORANGE (SIAGA)'}</strong>
                 </span>

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"gempa-sentinel/internal/agent"
 	"gempa-sentinel/internal/ai"
 	"gempa-sentinel/internal/hub"
 	"gempa-sentinel/internal/models"
@@ -25,7 +27,8 @@ type Server struct {
 	hub         *hub.SSEHub
 	sim         Simulator
 	ingestor    *realtime.Ingestor
-	analyzer    *ai.GeminiAnalyzer
+	pm          *ai.ProviderManager
+	agent       *agent.StreamingDataAgent
 	port        string
 	corsOrigin  string
 
@@ -49,13 +52,14 @@ type Simulator interface {
 }
 
 // NewServer creates a new API server
-func NewServer(h *hub.SSEHub, sim Simulator, analyzer *ai.GeminiAnalyzer, port, corsOrigin string) *Server {
+func NewServer(h *hub.SSEHub, sim Simulator, pm *ai.ProviderManager, ag *agent.StreamingDataAgent, port, corsOrigin string) *Server {
 	gin.SetMode(gin.ReleaseMode)
 
 	s := &Server{
 		hub:        h,
 		sim:        sim,
-		analyzer:   analyzer,
+		pm:         pm,
+		agent:      ag,
 		port:       port,
 		corsOrigin: corsOrigin,
 	}
@@ -76,6 +80,13 @@ func NewServer(h *hub.SSEHub, sim Simulator, analyzer *ai.GeminiAnalyzer, port, 
 	r.GET("/api/metrics/stream", s.handleMetricsStream)
 	r.GET("/api/alerts/stream", s.handleAlertsStream)
 	r.GET("/api/stream", s.handleAllStream)
+
+	// AI Provider & Streaming Agent endpoints
+	r.GET("/api/ai/provider", s.handleGetAIProvider)
+	r.POST("/api/ai/provider", s.handleSetAIProvider)
+	r.GET("/api/agent/state", s.handleGetAgentState)
+	r.GET("/api/agent/stream", s.handleAgentStream)
+	r.POST("/api/agent/chat/stream", s.handleAgentChatStream)
 
 	// REST endpoints
 	r.POST("/api/ai/ask", s.handleAIAsk)
@@ -135,7 +146,11 @@ func (s *Server) TriggerAIAnalysis(activityIndex models.ActivityIndex) {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		analysis, err := s.analyzer.Analyze(ctx, activityIndex, events)
+		if s.pm == nil {
+			return
+		}
+
+		analysis, err := s.pm.Analyze(ctx, activityIndex, events)
 		if err != nil {
 			log.Printf("[ERROR] AI analysis failed: %v", err)
 			return
@@ -145,7 +160,8 @@ func (s *Server) TriggerAIAnalysis(activityIndex models.ActivityIndex) {
 		s.latestAI = analysis
 		s.latestAIMu.Unlock()
 
-		log.Printf("[INFO] AI Analysis generated: %s (confidence: %.2f)", analysis.Status, analysis.Confidence)
+		log.Printf("[INFO] AI Analysis generated via %s (%s): %s (confidence: %.2f)",
+			s.pm.ActiveName(), s.pm.GetModelName(), analysis.Status, analysis.Confidence)
 		s.hub.BroadcastAll("ai_analysis", analysis)
 	}()
 }
@@ -337,7 +353,12 @@ func (s *Server) handleLatestAI(c *gin.Context) {
 		events = []string{"BMKG TEWS: Pemantauan kontinyu seismometer broadband nasional aktif"}
 	}
 
-	analysis, err := s.analyzer.Analyze(ctx, actIdx, events)
+	if s.pm == nil {
+		c.JSON(http.StatusOK, gin.H{"error": "AI provider not configured"})
+		return
+	}
+
+	analysis, err := s.pm.Analyze(ctx, actIdx, events)
 	if err == nil && analysis != nil {
 		s.latestAIMu.Lock()
 		s.latestAI = analysis
@@ -453,11 +474,125 @@ func (s *Server) handleAIAsk(c *gin.Context) {
 	telemetry := fmt.Sprintf("Seismic Intensity: %.1f%% | Risk Level: %s | Ocean/Tsunami Status: %s | Trend: %s\nRecent Stream Events:\n%s",
 		status.SeismicIntensity, status.RiskLevel, status.OceanStatus, status.TrendDirection, eventsContext)
 
-	resp, err := s.analyzer.AskCopilot(ctx, req.Question, telemetry)
+	if s.pm == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI provider not configured"})
+		return
+	}
+
+	resp, err := s.pm.AskCopilot(ctx, req.Question, telemetry)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+// --- AI Provider Handlers ---
+
+func (s *Server) handleGetAIProvider(c *gin.Context) {
+	if s.pm == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"active":    "gemini",
+			"model":     "gemini-2.5-flash",
+			"available": []string{"gemini"},
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"active":    s.pm.ActiveName(),
+		"model":     s.pm.GetModelName(),
+		"available": s.pm.ListProviders(),
+	})
+}
+
+func (s *Server) handleSetAIProvider(c *gin.Context) {
+	if s.pm == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "AI provider manager not initialized"})
+		return
+	}
+
+	var body struct {
+		Provider string `json:"provider"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || body.Provider == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "provider field is required"})
+		return
+	}
+
+	if err := s.pm.SetActive(body.Provider); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("[INFO] Switched active AI provider to: %s (%s)", s.pm.ActiveName(), s.pm.GetModelName())
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "ok",
+		"active":   s.pm.ActiveName(),
+		"model":    s.pm.GetModelName(),
+		"message":  fmt.Sprintf("AI provider switched to %s", s.pm.ActiveName()),
+	})
+}
+
+// --- Streaming Data Agent Handlers ---
+
+func (s *Server) handleGetAgentState(c *gin.Context) {
+	if s.agent == nil {
+		c.JSON(http.StatusOK, gin.H{"status": "Streaming Data Agent not initialized"})
+		return
+	}
+
+	c.JSON(http.StatusOK, s.agent.GetState())
+}
+
+func (s *Server) handleAgentStream(c *gin.Context) {
+	eventType := c.DefaultQuery("type", "agent_thought")
+	s.streamSSE(c, eventType)
+}
+
+func (s *Server) handleAgentChatStream(c *gin.Context) {
+	var req models.AIQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Question == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "question is required"})
+		return
+	}
+
+	if s.agent == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming agent not initialized"})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming unsupported by response writer"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+
+	resp, err := s.agent.ChatStream(ctx, req.Question, func(token string) {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"token": token,
+		})
+		fmt.Fprintf(c.Writer, "event: token\ndata: %s\n\n", payload)
+		flusher.Flush()
+	})
+
+	if err != nil {
+		errPayload, _ := json.Marshal(map[string]string{"error": err.Error()})
+		fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", errPayload)
+		flusher.Flush()
+		return
+	}
+
+	finalPayload, _ := json.Marshal(resp)
+	fmt.Fprintf(c.Writer, "event: done\ndata: %s\n\n", finalPayload)
+	flusher.Flush()
 }

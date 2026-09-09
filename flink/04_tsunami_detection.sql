@@ -3,49 +3,40 @@
 -- ============================================
 -- Monitors InaTEWS DART buoys and coastal tide gauges
 -- for megathrust tsunami wave propagation.
+-- Outputs JSON alerts directly into Confluent Cloud topic gempa.tsunami_scenarios.
 
-CREATE TABLE tsunami_scenarios (
-    `active` BOOLEAN,
-    `detection_time` TIMESTAMP_LTZ(3),
-    `sensor_id` STRING,
-    `wave_anomaly` DOUBLE,
-    `affected_zones` ARRAY<STRING>,
-    `response_actions` ARRAY<STRING>,
-    `severity` STRING,
-    `timestamp` TIMESTAMP_LTZ(3)
-) WITH (
-    'connector' = 'kafka',
-    'topic' = 'gempa.tsunami_scenarios',
-    'value.format' = 'json',
-    'value.json.timestamp-format.standard' = 'ISO-8601'
-);
-
-INSERT INTO tsunami_scenarios
+INSERT INTO `gempa.tsunami_scenarios` (`key`, `val`)
 SELECT
-    TRUE AS active,
-    window_start AS detection_time,
-    sensor_id,
-    max_wave_height AS wave_anomaly,
-    
-    CASE 
-        WHEN max_wave_height > 10.0 THEN ARRAY['Pesisir Mentawai', 'Padang', 'Cilacap', 'Anyer', 'Palu Bay']
-        WHEN max_wave_height > 5.0 THEN ARRAY['Zona Pesisir Utama (0-10m ASL)', 'Pesisir Banten & Selat Sunda', 'Pesisir Barat Sumatera']
-        ELSE ARRAY['Zona Waspada Pesisir', 'Pelabuhan Regional']
-    END AS affected_zones,
-    
-    CASE 
-        WHEN max_wave_height > 5.0 THEN ARRAY['🚨 EVAKUASI SEGERA ke dataran tinggi (>20m)', 'Aktifkan sirene tsunami nasional', 'Hentikan seluruh navigasi laut & pelabuhan', 'Mobilisasi Tim SAR & BNPB']
-        ELSE ARRAY['Waspada potensi gelombang tinggi', 'Jauhi pantai dan muara sungai']
-    END AS response_actions,
-    
-    CASE 
-        WHEN max_wave_height > 8.0 THEN 'CRITICAL'
-        WHEN max_wave_height > 3.0 THEN 'HIGH'
-        ELSE 'ELEVATED'
-    END AS severity,
-    
-    window_end AS `timestamp`
-    
+    CAST('tsunami' AS BYTES) AS `key`,
+    CAST(
+        JSON_OBJECT(
+            'active' VALUE TRUE,
+            'detection_time' VALUE DATE_FORMAT(window_start, 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z'''),
+            'sensor_id' VALUE sensor_id,
+            'wave_anomaly' VALUE max_wave_height,
+            'affected_zones' VALUE (
+                CASE 
+                    WHEN max_wave_height > 10.0 THEN JSON_ARRAY('Pesisir Mentawai', 'Padang', 'Cilacap', 'Anyer', 'Palu Bay')
+                    WHEN max_wave_height > 5.0 THEN JSON_ARRAY('Zona Pesisir Utama (0-10m ASL)', 'Pesisir Banten & Selat Sunda', 'Pesisir Barat Sumatera')
+                    ELSE JSON_ARRAY('Zona Waspada Pesisir', 'Pelabuhan Regional')
+                END
+            ),
+            'response_actions' VALUE (
+                CASE 
+                    WHEN max_wave_height > 5.0 THEN JSON_ARRAY('🚨 EVAKUASI SEGERA ke dataran tinggi (>20m)', 'Aktifkan sirene tsunami nasional', 'Hentikan seluruh navigasi laut & pelabuhan', 'Mobilisasi Tim SAR & BNPB')
+                    ELSE JSON_ARRAY('Waspada potensi gelombang tinggi', 'Jauhi pantai dan muara sungai')
+                END
+            ),
+            'severity' VALUE (
+                CASE 
+                    WHEN max_wave_height > 8.0 THEN 'CRITICAL'
+                    WHEN max_wave_height > 3.0 THEN 'HIGH'
+                    ELSE 'ELEVATED'
+                END
+            ),
+            'timestamp' VALUE DATE_FORMAT(window_end, 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z''')
+        ) AS BYTES
+    ) AS `val`
 FROM (
     SELECT
         window_start,

@@ -37,7 +37,7 @@ export function useSSE<T>(endpoint: string): SSEState<T> {
     };
 
     // Listen for specific event types
-    const eventTypes = ['metrics', 'activity_index', 'event', 'ai_analysis', 'tsunami', 'correlated_alert', 'all'];
+    const eventTypes = ['metrics', 'activity_index', 'event', 'ai_analysis', 'tsunami', 'correlated_alert', 'agent_thought', 'agent_action', 'all'];
     eventTypes.forEach(type => {
       es.addEventListener(type, (event: MessageEvent) => {
         try {
@@ -90,7 +90,7 @@ export function useMultiSSE(endpoint: string) {
       setConnected(true);
     };
 
-    const eventTypes = ['metrics', 'activity_index', 'event', 'ai_analysis', 'tsunami', 'correlated_alert', 'all'];
+    const eventTypes = ['metrics', 'activity_index', 'event', 'ai_analysis', 'tsunami', 'correlated_alert', 'agent_thought', 'agent_action', 'all'];
     eventTypes.forEach(type => {
       es.addEventListener(type, (event: MessageEvent) => {
         try {
@@ -138,5 +138,24 @@ export async function fetchStatus(): Promise<unknown> {
 
 export async function fetchGovernance(): Promise<unknown> {
   const res = await fetch(`${API_BASE}/api/governance`);
+  return res.json();
+}
+
+export async function fetchAIProvider(): Promise<{ active: string; model: string; available: string[] }> {
+  const res = await fetch(`${API_BASE}/api/ai/provider`);
+  return res.json();
+}
+
+export async function switchAIProvider(provider: string): Promise<{ status: string; active: string; model: string }> {
+  const res = await fetch(`${API_BASE}/api/ai/provider`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider }),
+  });
+  return res.json();
+}
+
+export async function fetchAgentState(): Promise<unknown> {
+  const res = await fetch(`${API_BASE}/api/agent/state`);
   return res.json();
 }

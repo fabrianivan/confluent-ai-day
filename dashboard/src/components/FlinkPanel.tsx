@@ -10,265 +10,253 @@ interface FlinkPanelProps {
 
 const FLINK_QUERIES = [
   {
+    id: 'create_views',
+    name: '01_create_tables.sql (Source Views)',
+    description: 'Mendefinisikan Flink SQL Source Views di atas inferred topics gempa.* Confluent Cloud dengan parsing payload JSON dan event-time $rowtime.',
+    sql: `-- Run in Confluent Cloud Flink SQL workspace.
+-- In Confluent Cloud, topics are automatically registered as inferred tables.
+-- These views parse incoming JSON payloads into typed relational schemas with $rowtime.
+
+CREATE VIEW IF NOT EXISTS seismic_events AS
+SELECT 
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.type') AS \`type\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.magnitude') AS DOUBLE) AS \`magnitude\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.depth') AS DOUBLE) AS \`depth\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.frequency') AS DOUBLE) AS \`frequency\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.count') AS INT) AS \`count\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.latitude') AS DOUBLE) AS \`latitude\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.longitude') AS DOUBLE) AS \`longitude\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.mmi') AS INT) AS \`mmi\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.pga') AS DOUBLE) AS \`pga\`,
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.fault_zone') AS \`fault_zone\`,
+    $rowtime AS \`timestamp\`
+FROM \`gempa.seismic\`;
+
+CREATE VIEW IF NOT EXISTS station_events AS
+SELECT 
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.type') AS \`type\`,
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.station_id') AS \`station_id\`,
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.station_name') AS \`station_name\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.latitude') AS DOUBLE) AS \`latitude\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.longitude') AS DOUBLE) AS \`longitude\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.signal_quality') AS DOUBLE) AS \`signal_quality\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.p_wave_arrival') AS DOUBLE) AS \`p_wave_arrival\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.s_wave_arrival') AS DOUBLE) AS \`s_wave_arrival\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.pga_recorded') AS DOUBLE) AS \`pga_recorded\`,
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.status') AS \`status\`,
+    $rowtime AS \`timestamp\`
+FROM \`gempa.stations\`;
+
+CREATE VIEW IF NOT EXISTS ocean_events AS
+SELECT 
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.type') AS \`type\`,
+    JSON_VALUE(MAKE_VALID_UTF8(val), '$.sensor_id') AS \`sensor_id\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.sea_level') AS DOUBLE) AS \`sea_level\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.wave_height') AS DOUBLE) AS \`wave_height\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.tsunami_sensor_reading') AS DOUBLE) AS \`tsunami_sensor_reading\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.buoy_data') AS DOUBLE) AS \`buoy_data\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.wave_eta') AS INT) AS \`wave_eta\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.latitude') AS DOUBLE) AS \`latitude\`,
+    CAST(JSON_VALUE(MAKE_VALID_UTF8(val), '$.longitude') AS DOUBLE) AS \`longitude\`,
+    $rowtime AS \`timestamp\`
+FROM \`gempa.tsunami\`;
+
+-- 8. Unified Multi-Sensor Telemetry
+CREATE VIEW IF NOT EXISTS telemetry_events AS
+SELECT \`timestamp\`, 'seismic' AS event_source, magnitude, pga, CAST(NULL AS DOUBLE) AS pga_recorded, CAST(NULL AS DOUBLE) AS coseismic_slip, CAST(NULL AS DOUBLE) AS wave_height FROM seismic_events
+UNION ALL
+SELECT \`timestamp\`, 'station' AS event_source, CAST(NULL AS DOUBLE) AS magnitude, CAST(NULL AS DOUBLE) AS pga, pga_recorded, CAST(NULL AS DOUBLE) AS coseismic_slip, CAST(NULL AS DOUBLE) AS wave_height FROM station_events
+UNION ALL
+SELECT \`timestamp\`, 'satellite' AS event_source, CAST(NULL AS DOUBLE) AS magnitude, CAST(NULL AS DOUBLE) AS pga, CAST(NULL AS DOUBLE) AS pga_recorded, coseismic_slip, CAST(NULL AS DOUBLE) AS wave_height FROM satellite_events
+UNION ALL
+SELECT \`timestamp\`, 'ocean' AS event_source, CAST(NULL AS DOUBLE) AS magnitude, CAST(NULL AS DOUBLE) AS pga, CAST(NULL AS DOUBLE) AS pga_recorded, CAST(NULL AS DOUBLE) AS coseismic_slip, wave_height FROM ocean_events;`,
+  },
+  {
     id: 'activity_index',
     name: '02_activity_index.sql (Star Query)',
-    description: 'Menghitung Indeks Intensitas Seismik Nasional secara kontinyu menggunakan Window TVF 1 menit dengan bobot multi-sensor.',
+    description: 'Menghitung Indeks Intensitas Seismik Nasional secara kontinyu menggunakan Window TVF 1 menit dengan bobot multi-sensor dan sink langsung ke Confluent Cloud.',
     sql: `-- Computes the real-time National Seismic Intensity Index
 -- using 1-minute tumbling windows over BMKG station telemetry & seismic events.
+-- Sinks JSON payloads directly to Confluent Cloud topic gempa.intensity_index.
 
-CREATE TABLE activity_index (
-    \`overall_percentage\` DOUBLE,
-    \`seismic_change\` DOUBLE,
-    \`tremor_change\` DOUBLE,
-    \`deformation_trend\` STRING,
-    \`thermal_trend\` STRING,
-    \`trend_direction\` STRING,
-    \`earthquake_count\` INT,
-    \`avg_magnitude\` DOUBLE,
-    \`max_magnitude\` DOUBLE,
-    \`timestamp\` TIMESTAMP_LTZ(3)
-) WITH (
-    'connector' = 'kafka',
-    'topic' = 'gempa.intensity_index',
-    'value.format' = 'json',
-    'value.json.timestamp-format.standard' = 'ISO-8601'
-);
-
-INSERT INTO activity_index
+INSERT INTO \`gempa.intensity_index\` (\`key\`, \`val\`)
 SELECT
-    -- Weighted seismic intensity formula:
-    -- 40% magnitude/energy + 35% station PGA + 15% InSAR coseismic slip + 10% tsunami wave anomaly
-    CASE 
-        WHEN (
-            (COALESCE(s.max_mag, 1.0) / 9.5 * 40.0) +
-            (COALESCE(st.avg_pga, 0.0) / 0.5 * 35.0) +
-            (COALESCE(sat.max_slip, 0.0) / 5.0 * 15.0) +
-            (COALESCE(o.max_wave, 0.0) / 10.0 * 10.0)
-        ) > 100.0 THEN 100.0
-        ELSE (
-            (COALESCE(s.max_mag, 1.0) / 9.5 * 40.0) +
-            (COALESCE(st.avg_pga, 0.0) / 0.5 * 35.0) +
-            (COALESCE(sat.max_slip, 0.0) / 5.0 * 15.0) +
-            (COALESCE(o.max_wave, 0.0) / 10.0 * 10.0)
-        )
-    END AS overall_percentage,
-    
-    COALESCE(s.seismic_energy_surge, 0.0) AS seismic_change,
-    COALESCE(st.avg_pga, 0.0) * 100.0 AS tremor_change,
-    
-    CASE 
-        WHEN COALESCE(sat.max_slip, 0.0) > 2.0 THEN 'MAJOR FAULT RUPTURE'
-        WHEN COALESCE(sat.max_slip, 0.0) > 0.5 THEN 'COSEISMIC DISPLACEMENT'
-        ELSE 'STABLE'
-    END AS deformation_trend,
-    
-    'STABLE' AS thermal_trend,
-    
-    CASE 
-        WHEN COALESCE(s.max_mag, 0.0) >= 8.0 THEN 'MEGATHRUST RUPTURE DETECTED'
-        WHEN COALESCE(s.max_mag, 0.0) >= 6.5 THEN 'MAJOR SHAKING'
-        WHEN COALESCE(s.max_mag, 0.0) >= 5.0 THEN 'MODERATE EVENT'
-        ELSE 'STABLE'
-    END AS trend_direction,
-    
-    COALESCE(s.quake_count, 0) AS earthquake_count,
-    COALESCE(s.avg_mag, 0.0) AS avg_magnitude,
-    COALESCE(s.max_mag, 0.0) AS max_magnitude,
-    s.window_end AS \`timestamp\`
+    CAST('intensity' AS BYTES) AS \`key\`,
+    CAST(
+        JSON_OBJECT(
+            'overall_percentage' VALUE overall_percentage,
+            'seismic_change' VALUE seismic_change,
+            'tremor_change' VALUE tremor_change,
+            'deformation_trend' VALUE deformation_trend,
+            'thermal_trend' VALUE thermal_trend,
+            'trend_direction' VALUE trend_direction,
+            'earthquake_count' VALUE earthquake_count,
+            'avg_magnitude' VALUE avg_magnitude,
+            'max_magnitude' VALUE max_magnitude,
+            'timestamp' VALUE DATE_FORMAT(\`timestamp\`, 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z''')
+        ) AS BYTES
+    ) AS \`val\`
 FROM (
-    SELECT 
-        window_end,
-        COUNT(*) AS quake_count,
-        AVG(magnitude) AS avg_mag,
-        MAX(magnitude) AS max_mag,
-        AVG(pga) * 200.0 AS seismic_energy_surge
+    SELECT
+        -- Weighted seismic intensity formula:
+        -- 40% magnitude/energy + 35% station PGA + 15% InSAR coseismic slip + 10% tsunami wave anomaly
+        CASE 
+            WHEN (
+                (COALESCE(MAX(magnitude), 1.0) / 9.5 * 40.0) +
+                (COALESCE(AVG(pga_recorded), 0.0) / 0.5 * 35.0) +
+                (COALESCE(MAX(coseismic_slip), 0.0) / 5.0 * 15.0) +
+                (COALESCE(MAX(wave_height), 0.0) / 10.0 * 10.0)
+            ) > 100.0 THEN 100.0
+            ELSE (
+                (COALESCE(MAX(magnitude), 1.0) / 9.5 * 40.0) +
+                (COALESCE(AVG(pga_recorded), 0.0) / 0.5 * 35.0) +
+                (COALESCE(MAX(coseismic_slip), 0.0) / 5.0 * 15.0) +
+                (COALESCE(MAX(wave_height), 0.0) / 10.0 * 10.0)
+            )
+        END AS overall_percentage,
+        
+        COALESCE(AVG(pga) * 200.0, 0.0) AS seismic_change,
+        COALESCE(AVG(pga_recorded) * 100.0, 0.0) AS tremor_change,
+        
+        CASE 
+            WHEN COALESCE(MAX(coseismic_slip), 0.0) > 2.0 THEN 'MAJOR FAULT RUPTURE'
+            WHEN COALESCE(MAX(coseismic_slip), 0.0) > 0.5 THEN 'COSEISMIC DISPLACEMENT'
+            ELSE 'STABLE'
+        END AS deformation_trend,
+        
+        'STABLE' AS thermal_trend,
+        
+        CASE 
+            WHEN COALESCE(MAX(magnitude), 0.0) >= 8.0 THEN 'MEGATHRUST RUPTURE DETECTED'
+            WHEN COALESCE(MAX(magnitude), 0.0) >= 6.5 THEN 'MAJOR SHAKING'
+            WHEN COALESCE(MAX(magnitude), 0.0) >= 5.0 THEN 'MODERATE EVENT'
+            ELSE 'STABLE'
+        END AS trend_direction,
+        
+        COALESCE(COUNT(CASE WHEN event_source = 'seismic' THEN 1 END), 0) AS earthquake_count,
+        COALESCE(AVG(magnitude), 0.0) AS avg_magnitude,
+        COALESCE(MAX(magnitude), 0.0) AS max_magnitude,
+        window_end AS \`timestamp\`
     FROM TABLE(
-        TUMBLE(TABLE seismic_events, DESCRIPTOR(\`timestamp\`), INTERVAL '1' MINUTE)
+        TUMBLE(TABLE telemetry_events, DESCRIPTOR(\`timestamp\`), INTERVAL '1' MINUTE)
     )
     GROUP BY window_start, window_end
-) s
-LEFT JOIN (
-    SELECT 
-        window_end,
-        AVG(pga_recorded) AS avg_pga
-    FROM TABLE(
-        TUMBLE(TABLE station_events, DESCRIPTOR(\`timestamp\`), INTERVAL '1' MINUTE)
-    )
-    GROUP BY window_start, window_end
-) st ON s.window_end = st.window_end
-LEFT JOIN (
-    SELECT 
-        window_end,
-        MAX(coseismic_slip) AS max_slip
-    FROM TABLE(
-        TUMBLE(TABLE satellite_events, DESCRIPTOR(\`timestamp\`), INTERVAL '1' MINUTE)
-    )
-    GROUP BY window_start, window_end
-) sat ON s.window_end = sat.window_end
-LEFT JOIN (
-    SELECT 
-        window_end,
-        MAX(wave_height) AS max_wave
-    FROM TABLE(
-        TUMBLE(TABLE ocean_events, DESCRIPTOR(\`timestamp\`), INTERVAL '1' MINUTE)
-    )
-    GROUP BY window_start, window_end
-) o ON s.window_end = o.window_end;`,
+);`,
   },
   {
     id: 'correlated_alerts',
     name: '03_correlated_alerts.sql (Multi-Indicator Join)',
     description: 'Mendeteksi lonjakan anomali simultan lintas domain (seismik + PGA stasiun + deformasi satelit InSAR + buoy laut) dalam window 2 menit.',
-    sql: `-- Detects when multiple independent indicators change 
--- simultaneously — seismic, station PGA, InSAR slip, and tsunami sensors.
+    sql: `-- Detects when multiple independent indicators change simultaneously.
+-- Sinks JSON alerts directly to Confluent Cloud topic gempa.correlated_alerts.
 
-CREATE TABLE correlated_alerts (
-    \`alert_level\` STRING,
-    \`correlated_indicators\` ARRAY<STRING>,
-    \`time_window\` STRING,
-    \`description\` STRING,
-    \`timestamp\` TIMESTAMP_LTZ(3)
-) WITH (
-    'connector' = 'kafka',
-    'topic' = 'gempa.correlated_alerts',
-    'value.format' = 'json',
-    'value.json.timestamp-format.standard' = 'ISO-8601'
-);
-
-INSERT INTO correlated_alerts
+INSERT INTO \`gempa.correlated_alerts\` (\`key\`, \`val\`)
 SELECT
-    CASE 
-        WHEN indicator_count >= 3 THEN 'CRITICAL'
-        WHEN indicator_count >= 2 THEN 'HIGH'
-        ELSE 'ELEVATED'
-    END AS alert_level,
-    
-    CASE 
-        WHEN s.max_mag >= 7.0 AND st.max_pga >= 0.15 AND sat.max_slip >= 1.0 AND o.max_wave >= 2.0
-            THEN ARRAY['Seismic Alert (M>=7.0)', 'Station PGA Surge (>=0.15g)', 'InSAR Fault Slip (>=1.0m)', 'Tsunami Wave Surge (>=2.0m)']
-        WHEN s.max_mag >= 7.0 AND st.max_pga >= 0.15 AND o.max_wave >= 2.0
-            THEN ARRAY['Seismic Alert (M>=7.0)', 'Station PGA Surge (>=0.15g)', 'Tsunami Wave Surge (>=2.0m)']
-        WHEN s.max_mag >= 7.0 AND st.max_pga >= 0.15 AND sat.max_slip >= 1.0
-            THEN ARRAY['Seismic Alert (M>=7.0)', 'Station PGA Surge (>=0.15g)', 'InSAR Fault Slip (>=1.0m)']
-        WHEN s.max_mag >= 7.0 AND o.max_wave >= 2.0
-            THEN ARRAY['Seismic Alert (M>=7.0)', 'Tsunami Wave Surge (>=2.0m)']
-        WHEN s.max_mag >= 7.0 AND sat.max_slip >= 1.0
-            THEN ARRAY['Seismic Alert (M>=7.0)', 'InSAR Fault Slip (>=1.0m)']
-        WHEN st.max_pga >= 0.15 AND o.max_wave >= 2.0
-            THEN ARRAY['Station PGA Surge (>=0.15g)', 'Tsunami Wave Surge (>=2.0m)']
-        WHEN st.max_pga >= 0.15 AND sat.max_slip >= 1.0
-            THEN ARRAY['Station PGA Surge (>=0.15g)', 'InSAR Fault Slip (>=1.0m)']
-        ELSE ARRAY['Seismic Precursor', 'Station Network Acceleration']
-    END AS correlated_indicators,
-    
-    CAST(window_start AS STRING) || ' to ' || CAST(window_end AS STRING) AS time_window,
-    
-    CASE 
-        WHEN indicator_count >= 3 THEN 'CRITICAL: Multiple independent seismic, geodetic, and ocean indicators confirm major megathrust event. Immediate evacuation recommended.'
-        WHEN indicator_count >= 2 THEN 'HIGH: Co-seismic slip and severe ground acceleration detected simultaneously across regional network.'
-        ELSE 'ELEVATED: Precursor earthquake swarm and ground acceleration increase.'
-    END AS description,
-    
-    window_end AS \`timestamp\`
+    CAST('alert' AS BYTES) AS \`key\`,
+    CAST(
+        JSON_OBJECT(
+            'alert_level' VALUE alert_level,
+            'correlated_indicators' VALUE correlated_indicators,
+            'time_window' VALUE time_window,
+            'description' VALUE description,
+            'timestamp' VALUE DATE_FORMAT(\`timestamp\`, 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z''')
+        ) AS BYTES
+    ) AS \`val\`
 FROM (
     SELECT
-        s.window_start,
-        s.window_end,
-        s.max_mag,
-        st.max_pga,
-        sat.max_slip,
-        o.max_wave,
-        (CASE WHEN s.max_mag >= 7.0 THEN 1 ELSE 0 END) +
-        (CASE WHEN COALESCE(st.max_pga, 0.0) >= 0.15 THEN 1 ELSE 0 END) +
-        (CASE WHEN COALESCE(sat.max_slip, 0.0) >= 1.0 THEN 1 ELSE 0 END) +
-        (CASE WHEN COALESCE(o.max_wave, 0.0) >= 2.0 THEN 1 ELSE 0 END)
-        AS indicator_count
+        CASE 
+            WHEN indicator_count >= 3 THEN 'CRITICAL'
+            WHEN indicator_count >= 2 THEN 'HIGH'
+            ELSE 'ELEVATED'
+        END AS alert_level,
+        
+        CASE 
+            WHEN max_mag >= 7.0 AND max_pga >= 0.15 AND max_slip >= 1.0 AND max_wave >= 2.0
+                THEN JSON_ARRAY('Seismic Alert (M>=7.0)', 'Station PGA Surge (>=0.15g)', 'InSAR Fault Slip (>=1.0m)', 'Tsunami Wave Surge (>=2.0m)')
+            WHEN max_mag >= 7.0 AND max_pga >= 0.15 AND max_wave >= 2.0
+                THEN JSON_ARRAY('Seismic Alert (M>=7.0)', 'Station PGA Surge (>=0.15g)', 'Tsunami Wave Surge (>=2.0m)')
+            WHEN max_mag >= 7.0 AND max_pga >= 0.15 AND max_slip >= 1.0
+                THEN JSON_ARRAY('Seismic Alert (M>=7.0)', 'Station PGA Surge (>=0.15g)', 'InSAR Fault Slip (>=1.0m)')
+            WHEN max_mag >= 7.0 AND max_wave >= 2.0
+                THEN JSON_ARRAY('Seismic Alert (M>=7.0)', 'Tsunami Wave Surge (>=2.0m)')
+            WHEN max_mag >= 7.0 AND max_slip >= 1.0
+                THEN JSON_ARRAY('Seismic Alert (M>=7.0)', 'InSAR Fault Slip (>=1.0m)')
+            WHEN max_pga >= 0.15 AND max_wave >= 2.0
+                THEN JSON_ARRAY('Station PGA Surge (>=0.15g)', 'Tsunami Wave Surge (>=2.0m)')
+            WHEN max_pga >= 0.15 AND max_slip >= 1.0
+                THEN JSON_ARRAY('Station PGA Surge (>=0.15g)', 'InSAR Fault Slip (>=1.0m)')
+            ELSE JSON_ARRAY('Seismic Precursor', 'Station Network Acceleration')
+        END AS correlated_indicators,
+        
+        CAST(window_start AS STRING) || ' to ' || CAST(window_end AS STRING) AS time_window,
+        
+        CASE 
+            WHEN indicator_count >= 3 THEN 'CRITICAL: Multiple independent seismic, geodetic, and ocean indicators confirm major megathrust event. Immediate evacuation recommended.'
+            WHEN indicator_count >= 2 THEN 'HIGH: Co-seismic slip and severe ground acceleration detected simultaneously across regional network.'
+            ELSE 'ELEVATED: Precursor earthquake swarm and ground acceleration increase.'
+        END AS description,
+        
+        window_end AS \`timestamp\`
     FROM (
-        SELECT 
+        SELECT
             window_start,
             window_end,
-            MAX(magnitude) AS max_mag
+            MAX(magnitude) AS max_mag,
+            MAX(pga_recorded) AS max_pga,
+            MAX(coseismic_slip) AS max_slip,
+            MAX(wave_height) AS max_wave,
+            (CASE WHEN MAX(magnitude) >= 7.0 THEN 1 ELSE 0 END) +
+            (CASE WHEN COALESCE(MAX(pga_recorded), 0.0) >= 0.15 THEN 1 ELSE 0 END) +
+            (CASE WHEN COALESCE(MAX(coseismic_slip), 0.0) >= 1.0 THEN 1 ELSE 0 END) +
+            (CASE WHEN COALESCE(MAX(wave_height), 0.0) >= 2.0 THEN 1 ELSE 0 END)
+            AS indicator_count
         FROM TABLE(
-            TUMBLE(TABLE seismic_events, DESCRIPTOR(\`timestamp\`), INTERVAL '2' MINUTE)
+            TUMBLE(TABLE telemetry_events, DESCRIPTOR(\`timestamp\`), INTERVAL '2' MINUTE)
         )
         GROUP BY window_start, window_end
-    ) s
-    LEFT JOIN (
-        SELECT 
-            window_end,
-            MAX(pga_recorded) AS max_pga
-        FROM TABLE(
-            TUMBLE(TABLE station_events, DESCRIPTOR(\`timestamp\`), INTERVAL '2' MINUTE)
-        )
-        GROUP BY window_start, window_end
-    ) st ON s.window_end = st.window_end
-    LEFT JOIN (
-        SELECT 
-            window_end,
-            MAX(coseismic_slip) AS max_slip
-        FROM TABLE(
-            TUMBLE(TABLE satellite_events, DESCRIPTOR(\`timestamp\`), INTERVAL '2' MINUTE)
-        )
-        GROUP BY window_start, window_end
-    ) sat ON s.window_end = sat.window_end
-    LEFT JOIN (
-        SELECT 
-            window_end,
-            MAX(wave_height) AS max_wave
-        FROM TABLE(
-            TUMBLE(TABLE ocean_events, DESCRIPTOR(\`timestamp\`), INTERVAL '2' MINUTE)
-        )
-        GROUP BY window_start, window_end
-    ) o ON s.window_end = o.window_end
-)
-WHERE indicator_count >= 2;`,
+    )
+    WHERE indicator_count >= 2
+);`,
   },
   {
     id: 'tsunami_detection',
     name: '04_tsunami_detection.sql (Wave Front Matcher)',
     description: 'Pencocokan pola rambatan gelombang tsunami dari sensor InaTEWS DART Buoy & IOC tide gauge dengan ambang batas bahaya pesisir.',
-    sql: `-- Real-time tsunami wave height & anomaly pattern matching
-CREATE TABLE tsunami_scenarios (
-    \`active\` BOOLEAN,
-    \`detection_time\` TIMESTAMP_LTZ(3),
-    \`sensor_id\` STRING,
-    \`wave_anomaly\` DOUBLE,
-    \`affected_zones\` ARRAY<STRING>,
-    \`response_actions\` ARRAY<STRING>,
-    \`severity\` STRING,
-    \`timestamp\` TIMESTAMP_LTZ(3)
-) WITH (
-    'connector' = 'kafka',
-    'topic' = 'gempa.tsunami_scenarios',
-    'value.format' = 'json',
-    'value.json.timestamp-format.standard' = 'ISO-8601'
-);
+    sql: `-- Real-time tsunami wave height & anomaly pattern matching.
+-- Sinks JSON alerts directly to Confluent Cloud topic gempa.tsunami_scenarios.
 
-INSERT INTO tsunami_scenarios
+INSERT INTO \`gempa.tsunami_scenarios\` (\`key\`, \`val\`)
 SELECT
-    TRUE AS active,
-    window_start AS detection_time,
-    sensor_id,
-    max_wave_height AS wave_anomaly,
-    
-    CASE 
-        WHEN max_wave_height > 10.0 THEN ARRAY['Pesisir Mentawai', 'Padang', 'Cilacap', 'Anyer', 'Palu Bay']
-        WHEN max_wave_height > 5.0 THEN ARRAY['Zona Pesisir Utama (0-10m ASL)', 'Pesisir Banten & Selat Sunda', 'Pesisir Barat Sumatera']
-        ELSE ARRAY['Zona Waspada Pesisir', 'Pelabuhan Regional']
-    END AS affected_zones,
-    
-    CASE 
-        WHEN max_wave_height > 5.0 THEN ARRAY['🚨 EVAKUASI SEGERA ke dataran tinggi (>20m)', 'Aktifkan sirene tsunami nasional', 'Hentikan seluruh navigasi laut & pelabuhan', 'Mobilisasi Tim SAR & BNPB']
-        ELSE ARRAY['Waspada potensi gelombang tinggi', 'Jauhi pantai dan muara sungai']
-    END AS response_actions,
-    
-    CASE 
-        WHEN max_wave_height > 8.0 THEN 'CRITICAL'
-        WHEN max_wave_height > 3.0 THEN 'HIGH'
-        ELSE 'ELEVATED'
-    END AS severity,
-    
-    window_end AS \`timestamp\`
+    CAST('tsunami' AS BYTES) AS \`key\`,
+    CAST(
+        JSON_OBJECT(
+            'active' VALUE TRUE,
+            'detection_time' VALUE DATE_FORMAT(window_start, 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z'''),
+            'sensor_id' VALUE sensor_id,
+            'wave_anomaly' VALUE max_wave_height,
+            'affected_zones' VALUE (
+                CASE 
+                    WHEN max_wave_height > 10.0 THEN JSON_ARRAY('Pesisir Mentawai', 'Padang', 'Cilacap', 'Anyer', 'Palu Bay')
+                    WHEN max_wave_height > 5.0 THEN JSON_ARRAY('Zona Pesisir Utama (0-10m ASL)', 'Pesisir Banten & Selat Sunda', 'Pesisir Barat Sumatera')
+                    ELSE JSON_ARRAY('Zona Waspada Pesisir', 'Pelabuhan Regional')
+                END
+            ),
+            'response_actions' VALUE (
+                CASE 
+                    WHEN max_wave_height > 5.0 THEN JSON_ARRAY('🚨 EVAKUASI SEGERA ke dataran tinggi (>20m)', 'Aktifkan sirene tsunami nasional', 'Hentikan seluruh navigasi laut & pelabuhan', 'Mobilisasi Tim SAR & BNPB')
+                    ELSE JSON_ARRAY('Waspada potensi gelombang tinggi', 'Jauhi pantai dan muara sungai')
+                END
+            ),
+            'severity' VALUE (
+                CASE 
+                    WHEN max_wave_height > 8.0 THEN 'CRITICAL'
+                    WHEN max_wave_height > 3.0 THEN 'HIGH'
+                    ELSE 'ELEVATED'
+                END
+            ),
+            'timestamp' VALUE DATE_FORMAT(window_end, 'yyyy-MM-dd''T''HH:mm:ss.SSS''Z''')
+        ) AS BYTES
+    ) AS \`val\`
 FROM (
     SELECT
         window_start,
@@ -285,17 +273,6 @@ WHERE max_wave_height > 1.5;`,
 ];
 
 export default function FlinkPanel({ activityIndex, status }: FlinkPanelProps) {
-  const [activeQueryTab, setActiveQueryTab] = useState('activity_index');
-  const [copied, setCopied] = useState(false);
-
-  const selectedQuery = FLINK_QUERIES.find((q) => q.id === activeQueryTab) || FLINK_QUERIES[0];
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(selectedQuery.sql);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const intensity = activityIndex?.overall_percentage ?? status?.seismic_intensity ?? 15.0;
 
   return (
@@ -443,49 +420,7 @@ export default function FlinkPanel({ activityIndex, status }: FlinkPanelProps) {
         </div>
       </div>
 
-      {/* Flink SQL Query Studio */}
-      <div className="card flink-studio-card">
-        <div className="card__header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span className="card__title">
-              <span className="card__title-icon">💻</span>
-              Flink SQL Query Studio
-            </span>
-            <span className="card__badge card__badge--flink">CONTINUOUS STREAM QUERIES</span>
-          </div>
-
-          <button
-            className="flink-copy-btn"
-            onClick={handleCopy}
-            title="Salin query Flink SQL"
-          >
-            {copied ? '✓ Disalin ke Clipboard' : '📋 Salin Query SQL'}
-          </button>
-        </div>
-
-        {/* Tab Selection */}
-        <div className="flink-studio-tabs">
-          {FLINK_QUERIES.map((q) => (
-            <button
-              key={q.id}
-              className={`flink-studio-tab ${activeQueryTab === q.id ? 'flink-studio-tab--active' : ''}`}
-              onClick={() => setActiveQueryTab(q.id)}
-            >
-              {q.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="flink-studio-body">
-          <div className="flink-studio-desc">
-            <strong>Penjelasan Kueri:</strong> {selectedQuery.description}
-          </div>
-
-          <pre className="flink-code-box">
-            <code>{selectedQuery.sql}</code>
-          </pre>
-        </div>
-      </div>
+      {/* Flink SQL Query Studio disembunyikan sesuai arahan */}
     </div>
   );
 }

@@ -19,9 +19,19 @@ export default function VolcanoSeismographHub({
 }: VolcanoSeismographHubProps) {
   const [activeVolcano, setActiveVolcano] = useState<string>(selectedVolcano || 'Anak Krakatau');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewZoom, setPreviewZoom] = useState<number>(1);
+  const [previewPan, setPreviewPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPreviewDragging, setIsPreviewDragging] = useState<boolean>(false);
+  const [previewDragStart, setPreviewDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const pointsRef = useRef<number[]>([]);
+
+  const openPreview = (imgUrl: string) => {
+    setPreviewImage(imgUrl);
+    setPreviewZoom(1);
+    setPreviewPan({ x: 0, y: 0 });
+  };
 
   // Keep internal selection synced with external prop
   useEffect(() => {
@@ -371,7 +381,7 @@ export default function VolcanoSeismographHub({
               cursor: 'pointer',
             }}
             onClick={() => {
-              if (latestReport.image_url) setPreviewImage(latestReport.image_url);
+              if (latestReport.image_url) openPreview(latestReport.image_url);
               else onInspectSeismogram?.(latestReport);
             }}
             title="Klik untuk memperbesar gambar seismogram"
@@ -498,8 +508,6 @@ export default function VolcanoSeismographHub({
                       border: '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                     }}
-                    onClick={() => setPreviewImage(item.image_url || null)}
-                    title="Perbesar gambar seismogram"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -552,9 +560,144 @@ export default function VolcanoSeismographHub({
       {/* Lightbox Modal */}
       {previewImage && (
         <div className="volcano-lightbox" onClick={() => setPreviewImage(null)}>
-          <div className="volcano-lightbox__content" onClick={(e) => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewImage} alt="Seismogram PVMBG" className="volcano-lightbox__img" />
+          <div
+            className="volcano-lightbox__content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              maxWidth: '92vw',
+              maxHeight: '92vh',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            {/* Zoom Controls Toolbar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                background: 'rgba(6, 10, 20, 0.9)',
+                borderRadius: '6px',
+                border: '1px solid var(--border-subtle)',
+                marginBottom: '10px',
+                zIndex: 10,
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#00f2ff' }}>🔍 Zoom:</span>
+              <button
+                onClick={() => setPreviewZoom((z) => Math.max(0.75, Number((z - 0.25).toFixed(2))))}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                }}
+              >
+                −
+              </button>
+              {[1, 1.5, 2, 2.5].map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => {
+                    setPreviewZoom(lvl);
+                    if (lvl === 1) setPreviewPan({ x: 0, y: 0 });
+                  }}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    background: previewZoom === lvl ? 'rgba(0,242,255,0.2)' : 'rgba(255,255,255,0.05)',
+                    color: previewZoom === lvl ? '#00f2ff' : 'var(--text-secondary)',
+                    border: `1px solid ${previewZoom === lvl ? '#00f2ff' : 'var(--border-subtle)'}`,
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {lvl}x
+                </button>
+              ))}
+              <button
+                onClick={() => setPreviewZoom((z) => Math.min(3.5, Number((z + 0.25).toFixed(2))))}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                }}
+              >
+                +
+              </button>
+              <button
+                onClick={() => {
+                  setPreviewZoom(1);
+                  setPreviewPan({ x: 0, y: 0 });
+                }}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  fontSize: '10px',
+                }}
+              >
+                ⟲ Reset
+              </button>
+            </div>
+
+            {/* Draggable Pan Image Container */}
+            <div
+              onWheel={(e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.2 : -0.2;
+                setPreviewZoom((z) => Math.max(0.75, Math.min(3.5, Number((z + delta).toFixed(2)))));
+              }}
+              onMouseDown={(e) => {
+                if (previewZoom <= 1) return;
+                setIsPreviewDragging(true);
+                setPreviewDragStart({ x: e.clientX - previewPan.x, y: e.clientY - previewPan.y });
+              }}
+              onMouseMove={(e) => {
+                if (!isPreviewDragging || previewZoom <= 1) return;
+                setPreviewPan({ x: e.clientX - previewDragStart.x, y: e.clientY - previewDragStart.y });
+              }}
+              onMouseUp={() => setIsPreviewDragging(false)}
+              onMouseLeave={() => setIsPreviewDragging(false)}
+              style={{
+                width: '100%',
+                maxHeight: '78vh',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: previewZoom > 1 ? (isPreviewDragging ? 'grabbing' : 'grab') : 'default',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewImage}
+                alt="Seismogram PVMBG"
+                className="volcano-lightbox__img"
+                style={{
+                  transform: `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`,
+                  transition: isPreviewDragging ? 'none' : 'transform 0.15s ease',
+                  userSelect: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            </div>
+
             <button
               className="volcano-lightbox__close-btn"
               onClick={() => setPreviewImage(null)}

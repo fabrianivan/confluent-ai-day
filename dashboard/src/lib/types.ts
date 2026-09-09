@@ -235,3 +235,33 @@ export interface VolcanoEruption {
   recommendation: string;
   timestamp: string;
 }
+
+export interface AgentThought {
+  cycle_id: number;
+  phase: 'OBSERVE' | 'ORIENT' | 'DECIDE' | 'ACT';
+  message: string;
+  severity: string;
+  timestamp: string;
+}
+
+export interface AgentTacticalAction {
+  id: string;
+  type: string;
+  agency: string;
+  target_zone: string;
+  priority: string;
+  rationale: string;
+  timestamp: string;
+}
+
+export interface AgentState {
+  status: string;
+  active_provider: string;
+  active_model: string;
+  total_cycles: number;
+  last_evaluated_at: string;
+  current_risk: string;
+  latest_intensity?: ActivityIndex;
+  recent_thoughts: AgentThought[];
+  recent_actions: AgentTacticalAction[];
+}

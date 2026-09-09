@@ -37,6 +37,7 @@ export default function StatusBar({
             timeZone: 'Asia/Makassar',
             hour: '2-digit',
             minute: '2-digit',
+            second: '2-digit',
             hour12: false,
           }).format(now) + ' WITA',
         wit:
@@ -44,6 +45,7 @@ export default function StatusBar({
             timeZone: 'Asia/Jayapura',
             hour: '2-digit',
             minute: '2-digit',
+            second: '2-digit',
             hour12: false,
           }).format(now) + ' WIT',
       });
@@ -59,16 +61,16 @@ export default function StatusBar({
     <header className="status-bar">
       <div className="status-bar__brand">
         <div className="status-bar__icon-wrapper" aria-hidden>
-          <span className="status-bar__icon-mark" />
+          <span className="status-bar__icon-mark">🇮🇩</span>
           <span className="status-bar__icon-beacon" />
         </div>
         <div>
           <div className="status-bar__title">
             <span>INATEWS SENTINEL</span>
-            <span className="status-bar__version">EARLY WARNING</span>
+            <span className="status-bar__version">MISSION CONTROL</span>
           </div>
           <div className="status-bar__subtitle">
-            Peringatan dini gempa & tsunami Indonesia · BMKG TEWS · Kafka · Flink · Gemini
+            Pusat Intelijen Bencana & Megathrust Nasional · BMKG TEWS · Confluent Cloud · Apache Flink · Bedrock & Gemini AI
           </div>
         </div>
       </div>
@@ -76,9 +78,9 @@ export default function StatusBar({
       <div className="status-bar__center">
         <div className="status-bar__clock">
           <span className="status-bar__clock-val">{timeStr.wib || '--:--:-- WIB'}</span>
-          <span className="status-bar__clock-sep">|</span>
+          <span className="status-bar__clock-sep">•</span>
           <span className="status-bar__clock-sub">{timeStr.wita}</span>
-          <span className="status-bar__clock-sep">|</span>
+          <span className="status-bar__clock-sep">•</span>
           <span className="status-bar__clock-sub">{timeStr.wit}</span>
           <span className="status-bar__clock-sep">|</span>
           <span className="status-bar__clock-utc">{timeStr.utc || '--:--:-- UTC'}</span>
@@ -86,6 +88,7 @@ export default function StatusBar({
       </div>
 
       <div className="status-bar__right">
+        {/* Operation Mode Toggle */}
         <div className="status-bar__mode-switch" role="tablist" aria-label="Mode operasi">
           <button
             type="button"
@@ -96,8 +99,8 @@ export default function StatusBar({
             }`}
             onClick={() => onModeChange('REAL')}
           >
-            <span className="live-dot-pulse" />
-            Operasi live
+            <span className="live-dot-pulse" style={{ width: '6px', height: '6px' }} />
+            OPERASI LIVE
           </button>
           <button
             type="button"
@@ -108,29 +111,33 @@ export default function StatusBar({
             }`}
             onClick={() => onModeChange('SIMULASI')}
           >
-            Latihan megathrust
+            🧪 DRILL SIMULASI
           </button>
         </div>
 
+        {/* Confluent Cloud Status Badge */}
         <div className="status-bar__cluster-badge">
-          Confluent Cloud
+          <span>☁️</span>
+          <span>Confluent Cloud (us-east-2)</span>
         </div>
 
+        {/* Threat Level Badge */}
         <div
           className={`status-bar__alerts ${
             isAlert ? 'status-bar__alerts--active' : 'status-bar__alerts--none'
           }`}
         >
-          <span>{isAlert ? `${alertCount || 1} ALERT` : 'NOMINAL'}</span>
+          <span>{isAlert ? `🚨 ${alertCount || 1} ALERT` : '🛡️ NORMAL'}</span>
         </div>
 
+        {/* SSE Streaming Indicator */}
         <div className="status-bar__live">
           <div
             className={`status-bar__live-dot ${
               !connected ? 'status-bar__live-dot--disconnected' : ''
             }`}
           />
-          <span>{connected ? 'SSE LIVE' : 'MENGHUBUNGKAN'}</span>
+          <span>{connected ? 'STREAM LIVE' : 'CONNECTING'}</span>
         </div>
       </div>
     </header>
