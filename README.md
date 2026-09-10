@@ -1,12 +1,16 @@
 # INATEWS SENTINEL
 
-**Sistem Peringatan Dini Gempa & Tsunami Indonesia — Real-Time Disaster Intelligence & Early Warning**
+🏆 **3rd Prize: The Most Creative AI App for Confluent AI Day Indonesia 2026**
+
+**Sistem Peringatan Dini Lava Gunung, Gempa & Tsunami Indonesia — Real-Time Disaster Intelligence & Early Warning**
 
 A streaming intelligence system that continuously monitors BMKG seismic networks, InaTEWS tsunami buoys & IOC sea level gauges, geodetic satellite observations, and meteorological feeds across Indonesia's major subduction zones through Confluent Cloud. Apache Flink SQL correlates events in real time to compute a National Seismic Intensity Index (MMI) and detect tsunami wave anomalies, while Google Gemini AI provides explainable risk assessments and decision-support recommendations for disaster response authorities (BMKG, BNPB, BASARNAS).
 
 > ⚠️ **Important**: This system provides real-time seismic decision-support and rapid impact estimation. It is **NOT** an earthquake prediction system.
 
-**Live dashboard:** https://dashboard-six-psi-45.vercel.app
+**Live dashboard:** https://dashboard-six-psi-45.vercel.app (disabled)
+
+<img width="1505" height="853" alt="Screenshot 2026-09-09 at 15 40 09" src="https://github.com/user-attachments/assets/f694cf7f-0baf-44bc-b64f-d30f9a5b8709" />
 
 ---
 
