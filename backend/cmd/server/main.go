@@ -70,8 +70,8 @@ func main() {
 	// Initialize Autonomous Streaming Data Agent
 	streamingAgent := agent.NewStreamingDataAgent(pm, sseHub)
 
-	// Initialize Simulator (for on-demand drill/scenarios)
-	sim := simulator.NewSimulator(producer, sseHub)
+	// Initialize Simulator (for on-demand drill/scenarios with dummy data, completely isolated from Confluent Cloud)
+	sim := simulator.NewSimulator(nil, sseHub)
 
 	// Initialize Real-Time Ingestor (BMKG + USGS + IOC Sea Level + Open-Meteo)
 	ingestor := realtime.NewIngestor(producer, sseHub)

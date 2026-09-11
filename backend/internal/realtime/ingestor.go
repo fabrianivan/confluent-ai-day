@@ -617,7 +617,7 @@ func (in *Ingestor) broadcastLiveTelemetry(ctx context.Context) {
 
 			status := models.SystemStatus{
 				SeismicIntensity: act,
-				OceanStatus:      "LIVE BMKG & IOC SEA LEVEL FEED",
+				OceanStatus:      "NOMINAL (8 BUOYS ONLINE)",
 				WeatherStatus:    "OPEN-METEO ONLINE",
 				InfraStatus:      "OPERATIONAL",
 				ActiveAlerts:     0,
@@ -718,7 +718,7 @@ func (in *Ingestor) GetStatus() models.SystemStatus {
 
 	return models.SystemStatus{
 		SeismicIntensity: in.latestActivity,
-		OceanStatus:      "LIVE BMKG & IOC SEA LEVEL FEED",
+		OceanStatus:      "NOMINAL (8 BUOYS ONLINE)",
 		WeatherStatus:    "OPEN-METEO ONLINE",
 		InfraStatus:      "OPERATIONAL",
 		ActiveAlerts:     0,

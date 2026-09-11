@@ -101,8 +101,8 @@ export default function WorkspaceNav({
 
         {isDrill && (
           <div className="workspace-nav__drill-indicator">
-            <span className="live-dot-pulse" style={{ background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
-            <span>MODE LATIHAN MEGATHRUST AKTIF</span>
+            <span className="live-dot-pulse" />
+            <span>⚠️ MODE SIMULASI</span>
           </div>
         )}
       </div>

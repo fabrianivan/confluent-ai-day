@@ -10,6 +10,9 @@ export interface SeismicEvent {
   pga: number;
   fault_zone: string;
   timestamp: string;
+  url?: string;
+  status?: string;
+  tsunami?: number;
 }
 
 export interface StationEvent {
@@ -131,6 +134,31 @@ export interface AIAnalysis {
   timestamp: string;
 }
 
+export interface TsunamiAffectedZoneDetail {
+  zone: string;
+  province: string;
+  estimated_eta: string;
+  estimated_wave_height: string;
+  status: 'AWAS' | 'SIAGA' | 'WASPADA';
+  inundation_depth: string;
+  population_at_risk: string;
+  safe_elevation: string;
+  coords?: [number, number];
+  polygon?: [number, number][];
+}
+
+export interface InfrastructureDamageDetail {
+  facility: string;
+  type: string;
+  location: string;
+  damage_level: 'HEAVY' | 'MODERATE' | 'LIGHT';
+  loss_estimate: string;
+  operational_status: string;
+  critical_action: string;
+  coords?: [number, number];
+  icon?: string;
+}
+
 export interface TsunamiScenario {
   active: boolean;
   detection_time: string;
@@ -140,6 +168,8 @@ export interface TsunamiScenario {
   response_actions: string[];
   severity: string;
   timestamp: string;
+  affected_zone_details?: TsunamiAffectedZoneDetail[];
+  infrastructure_impacts?: InfrastructureDamageDetail[];
 }
 
 export interface SystemStatus {
