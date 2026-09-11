@@ -8,9 +8,16 @@ A streaming intelligence system that continuously monitors BMKG seismic networks
 
 > ⚠️ **Important**: This system provides real-time seismic decision-support and rapid impact estimation. It is **NOT** an earthquake prediction system.
 
-**Live dashboard:** https://dashboard-six-psi-45.vercel.app (disabled)
+**Live dashboard:** [https://dashboard-six-psi-45.vercel.app (disabled)](https://inatews-sentinel.vercel.app/) (Confluent disabled)
 
-<img width="1505" height="853" alt="Screenshot 2026-09-09 at 15 40 09" src="https://github.com/user-attachments/assets/f694cf7f-0baf-44bc-b64f-d30f9a5b8709" />
+<img width="1512" height="867" alt="Screenshot 2026-09-11 at 15 30 26" src="https://github.com/user-attachments/assets/f7fa35e1-8cfb-4468-8e17-b9e1203322c5" />
+
+<img width="1501" height="862" alt="Screenshot 2026-09-11 at 14 56 23" src="https://github.com/user-attachments/assets/b3ed1b8e-b293-40d2-9fbd-4fae8d273cac" />
+
+<img width="1497" height="864" alt="Screenshot 2026-09-11 at 14 56 20" src="https://github.com/user-attachments/assets/49f9eb77-085f-4c0b-adcb-745887f86dc5" />
+
+<img width="1512" height="867" alt="Screenshot 2026-09-11 at 15 40 52" src="https://github.com/user-attachments/assets/9cf6a146-0d92-4e11-83d9-f582386eb726" />
+
 
 ---
 
