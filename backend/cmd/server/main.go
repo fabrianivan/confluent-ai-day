@@ -11,6 +11,7 @@ import (
 	"gempa-sentinel/internal/ai"
 	"gempa-sentinel/internal/api"
 	"gempa-sentinel/internal/config"
+	"gempa-sentinel/internal/connectors"
 	"gempa-sentinel/internal/hub"
 	"gempa-sentinel/internal/kafka"
 	"gempa-sentinel/internal/models"
@@ -76,7 +77,7 @@ func main() {
 	ingestor := realtime.NewIngestor(producer, sseHub)
 
 	// Initialize API Server
-	server := api.NewServer(sseHub, sim, pm, streamingAgent, cfg.ServerPort, cfg.CORSOrigin)
+	server := api.NewServer(sseHub, sim, pm, streamingAgent, nil, cfg.ServerPort, cfg.CORSOrigin)
 	server.SetIngestor(ingestor)
 
 	// Wire AI analysis trigger from real-time and simulator to server analyzer and streaming agent
@@ -115,6 +116,14 @@ func main() {
 	// Create a context that cancels on interrupt
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Initialize Connector Manager
+	clusterID := "lkc-xqxxgr1"
+	connectorMgr := connectors.NewManager(clusterID)
+	go connectorMgr.Start(ctx)
+
+	// Set connector manager on server
+	server.SetConnectorManager(connectorMgr)
 
 	// Start the autonomous streaming data agent
 	streamingAgent.Start(ctx)

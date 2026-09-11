@@ -1,6 +1,6 @@
 'use client';
 
-export type WorkspaceTab = 'overview' | 'ai' | 'ocean' | 'stream' | 'volcano' | 'all';
+export type WorkspaceTab = 'overview' | 'ai' | 'ocean' | 'stream' | 'volcano' | 'all' | 'connectors';
 
 interface WorkspaceNavProps {
   activeTab: WorkspaceTab;
@@ -50,6 +50,13 @@ export default function WorkspaceNav({
       icon: '🌋',
       badge: 'LIVE',
       badgeColor: '#f59e0b',
+    },
+    {
+      id: 'connectors',
+      label: 'CONFLUENT CONNECTORS',
+      icon: '🔌',
+      badge: '2 ACTIVE',
+      badgeColor: '#ff9100',
     },
     {
       id: 'all',

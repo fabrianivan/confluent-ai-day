@@ -14,6 +14,7 @@ import (
 
 	"gempa-sentinel/internal/agent"
 	"gempa-sentinel/internal/ai"
+	"gempa-sentinel/internal/connectors"
 	"gempa-sentinel/internal/hub"
 	"gempa-sentinel/internal/models"
 	"gempa-sentinel/internal/realtime"
@@ -24,22 +25,23 @@ import (
 
 // Server is the main API server
 type Server struct {
-	router      *gin.Engine
-	hub         *hub.SSEHub
-	sim         Simulator
-	ingestor    *realtime.Ingestor
-	pm          *ai.ProviderManager
-	agent       *agent.StreamingDataAgent
-	port        string
-	corsOrigin  string
+	router       *gin.Engine
+	hub          *hub.SSEHub
+	sim          Simulator
+	ingestor     *realtime.Ingestor
+	pm           *ai.ProviderManager
+	agent        *agent.StreamingDataAgent
+	connectorMgr *connectors.Manager
+	port         string
+	corsOrigin   string
 
 	// State tracking for AI analysis triggers
-	lastAITrigger    time.Time
-	aiTriggerMu      sync.Mutex
-	recentEvents     []string
-	recentEventsMu   sync.Mutex
-	latestAI         *models.AIAnalysis
-	latestAIMu       sync.RWMutex
+	lastAITrigger  time.Time
+	aiTriggerMu    sync.Mutex
+	recentEvents   []string
+	recentEventsMu sync.Mutex
+	latestAI       *models.AIAnalysis
+	latestAIMu     sync.RWMutex
 }
 
 // Simulator defines the interface for the event simulator
@@ -53,16 +55,17 @@ type Simulator interface {
 }
 
 // NewServer creates a new API server
-func NewServer(h *hub.SSEHub, sim Simulator, pm *ai.ProviderManager, ag *agent.StreamingDataAgent, port, corsOrigin string) *Server {
+func NewServer(h *hub.SSEHub, sim Simulator, pm *ai.ProviderManager, ag *agent.StreamingDataAgent, connMgr *connectors.Manager, port, corsOrigin string) *Server {
 	gin.SetMode(gin.ReleaseMode)
 
 	s := &Server{
-		hub:        h,
-		sim:        sim,
-		pm:         pm,
-		agent:      ag,
-		port:       port,
-		corsOrigin: corsOrigin,
+		hub:          h,
+		sim:          sim,
+		pm:           pm,
+		agent:        ag,
+		connectorMgr: connMgr,
+		port:         port,
+		corsOrigin:   corsOrigin,
 	}
 
 	r := gin.New()
@@ -113,6 +116,11 @@ func NewServer(h *hub.SSEHub, sim Simulator, pm *ai.ProviderManager, ag *agent.S
 	r.GET("/api/status", s.handleStatus)
 	r.GET("/api/governance", s.handleGovernance)
 	r.GET("/api/health", s.handleHealth)
+
+	// Connector management endpoints
+	r.GET("/api/connectors", s.handleGetConnectors)
+	r.POST("/api/connectors/:name/action", s.handleConnectorAction)
+	r.POST("/api/webhook/alerts", s.handleWebhookAlert)
 
 	s.router = r
 	return s
@@ -257,8 +265,8 @@ func (s *Server) handleVolcanicEscalation(c *gin.Context) {
 				ThermalTrend:      "INCREASING",
 				TrendDirection:    "RAPIDLY INCREASING",
 				EarthquakeCount:   int(t.activity / 8),
-				AvgMagnitude:      1.5 + (t.activity / 100) * 2.0,
-				MaxMagnitude:      2.5 + (t.activity / 100) * 1.5,
+				AvgMagnitude:      1.5 + (t.activity/100)*2.0,
+				MaxMagnitude:      2.5 + (t.activity/100)*1.5,
 				Timestamp:         time.Now(),
 			}
 			s.TriggerAIAnalysis(idx)
@@ -418,7 +426,7 @@ func (s *Server) handleRecentBMKG(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"recent_bmkg": s.ingestor.GetRecentBMKG(),
-		"timestamp":    time.Now(),
+		"timestamp":   time.Now(),
 	})
 }
 
@@ -490,9 +498,126 @@ func (s *Server) handleHealth(c *gin.Context) {
 	})
 }
 
+// handleGetConnectors returns all connector statuses
+func (s *Server) handleGetConnectors(c *gin.Context) {
+	if s.connectorMgr == nil {
+		c.JSON(http.StatusOK, []models.ConnectorInfo{})
+		return
+	}
+	connectors := s.connectorMgr.GetConnectors()
+	c.JSON(http.StatusOK, connectors)
+}
+
+// handleConnectorAction performs an action on a connector (pause, resume, restart)
+func (s *Server) handleConnectorAction(c *gin.Context) {
+	if s.connectorMgr == nil {
+		c.JSON(http.StatusServiceUnavailable, models.ConnectorActionResponse{
+			Success: false,
+			Message: "Connector manager not initialized",
+		})
+		return
+	}
+
+	name := c.Param("name")
+	var req models.ConnectorActionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ConnectorActionResponse{
+			Success: false,
+			Message: "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	var err error
+	switch req.Action {
+	case "pause":
+		err = s.connectorMgr.PauseConnector(name)
+	case "resume":
+		err = s.connectorMgr.ResumeConnector(name)
+	case "restart":
+		err = s.connectorMgr.RestartConnector(name)
+	default:
+		c.JSON(http.StatusBadRequest, models.ConnectorActionResponse{
+			Success: false,
+			Message: "Invalid action: must be pause, resume, or restart",
+		})
+		return
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ConnectorActionResponse{
+			Success: false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.ConnectorActionResponse{
+		Success: true,
+		Message: fmt.Sprintf("Connector %s %s successfully", name, req.Action),
+	})
+}
+
+// handleWebhookAlert receives alerts from HttpSink connector or external webhooks
+func (s *Server) handleWebhookAlert(c *gin.Context) {
+	var payload models.WebhookAlertPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		// Accept any JSON payload
+		var raw map[string]interface{}
+		if err2 := c.ShouldBindJSON(&raw); err2 != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+			return
+		}
+		payload = models.WebhookAlertPayload{
+			AlertLevel:           "INFO",
+			CorrelatedIndicators: []string{"webhook"},
+			TimeWindow:           "real-time",
+			Description:          "Alert received via webhook",
+			Timestamp:            time.Now(),
+			Raw:                  raw,
+		}
+	}
+
+	// Record in connector manager for telemetry
+	if s.connectorMgr != nil {
+		rawMap := make(map[string]interface{})
+		b, _ := json.Marshal(payload)
+		_ = json.Unmarshal(b, &rawMap)
+		s.connectorMgr.RecordWebhookAlert(rawMap)
+	}
+
+	// Broadcast to SSE clients
+	alertData := map[string]interface{}{
+		"event": "connector_alert",
+		"data":  payload,
+	}
+	alertJSON, _ := json.Marshal(alertData)
+	s.hub.BroadcastAll("connector_alert", string(alertJSON))
+
+	// Also broadcast as AI analysis trigger if high severity
+	if payload.AlertLevel == "CRITICAL" || payload.AlertLevel == "HIGH" {
+		idx := models.ActivityIndex{
+			OverallPercentage: 75.0,
+			TrendDirection:    "CONNECTOR ALERT: " + payload.Description,
+			Timestamp:         time.Now(),
+		}
+		s.TriggerAIAnalysis(idx)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"message": "Alert received and broadcasted",
+	})
+}
+
 // SetIngestor binds the real-time ingestor
 func (s *Server) SetIngestor(ing *realtime.Ingestor) {
 	s.ingestor = ing
+}
+
+// SetConnectorManager binds the connector manager
+func (s *Server) SetConnectorManager(mgr *connectors.Manager) {
+	s.connectorMgr = mgr
 }
 
 func (s *Server) handleModeToggle(c *gin.Context) {
@@ -594,10 +719,10 @@ func (s *Server) handleSetAIProvider(c *gin.Context) {
 
 	log.Printf("[INFO] Switched active AI provider to: %s (%s)", s.pm.ActiveName(), s.pm.GetModelName())
 	c.JSON(http.StatusOK, gin.H{
-		"status":   "ok",
-		"active":   s.pm.ActiveName(),
-		"model":    s.pm.GetModelName(),
-		"message":  fmt.Sprintf("AI provider switched to %s", s.pm.ActiveName()),
+		"status":  "ok",
+		"active":  s.pm.ActiveName(),
+		"model":   s.pm.GetModelName(),
+		"message": fmt.Sprintf("AI provider switched to %s", s.pm.ActiveName()),
 	})
 }
 

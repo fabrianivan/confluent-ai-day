@@ -15,8 +15,8 @@ type SeismicEvent struct {
 	Count     int       `json:"count"`
 	Latitude  float64   `json:"latitude"`
 	Longitude float64   `json:"longitude"`
-	MMI       int       `json:"mmi"`       // Modified Mercalli Intensity (I-XII)
-	PGA       float64   `json:"pga"`       // Peak Ground Acceleration (g)
+	MMI       int       `json:"mmi"` // Modified Mercalli Intensity (I-XII)
+	PGA       float64   `json:"pga"` // Peak Ground Acceleration (g)
 	FaultZone string    `json:"fault_zone"`
 	Timestamp time.Time `json:"timestamp"`
 }
@@ -29,10 +29,10 @@ type StationEvent struct {
 	Latitude      float64   `json:"latitude"`
 	Longitude     float64   `json:"longitude"`
 	SignalQuality float64   `json:"signal_quality"` // 0-100%
-	PWaveArrival  float64   `json:"p_wave_arrival"`  // seconds since origin
-	SWaveArrival  float64   `json:"s_wave_arrival"`  // seconds since origin
-	PGARecorded   float64   `json:"pga_recorded"`    // g
-	Status        string    `json:"status"`          // ONLINE, OFFLINE, CLIPPED
+	PWaveArrival  float64   `json:"p_wave_arrival"` // seconds since origin
+	SWaveArrival  float64   `json:"s_wave_arrival"` // seconds since origin
+	PGARecorded   float64   `json:"pga_recorded"`   // g
+	Status        string    `json:"status"`         // ONLINE, OFFLINE, CLIPPED
 	Timestamp     time.Time `json:"timestamp"`
 }
 
@@ -64,25 +64,25 @@ type WeatherEvent struct {
 
 // SatelliteEvent represents satellite observation (InSAR, SAR)
 type SatelliteEvent struct {
-	Type             string    `json:"type"`
-	GroundDisplacement float64 `json:"ground_displacement"` // cm
-	Deformation      float64   `json:"deformation"`
-	CoseismicSlip    float64   `json:"coseismic_slip"` // meters of fault slip
-	SatelliteID      string    `json:"satellite_id"`
-	Timestamp        time.Time `json:"timestamp"`
+	Type               string    `json:"type"`
+	GroundDisplacement float64   `json:"ground_displacement"` // cm
+	Deformation        float64   `json:"deformation"`
+	CoseismicSlip      float64   `json:"coseismic_slip"` // meters of fault slip
+	SatelliteID        string    `json:"satellite_id"`
+	Timestamp          time.Time `json:"timestamp"`
 }
 
 // InfrastructureEvent represents infrastructure impact data
 type InfrastructureEvent struct {
-	Type           string    `json:"type"`
-	FacilityID     string    `json:"facility_id"`
-	FacilityName   string    `json:"facility_name"`
-	FacilityType   string    `json:"facility_type"` // BRIDGE, HOSPITAL, SCHOOL, PORT
-	Latitude       float64   `json:"latitude"`
-	Longitude      float64   `json:"longitude"`
-	DamageLevel    string    `json:"damage_level"` // NONE, MINOR, MODERATE, SEVERE, COLLAPSED
-	Operational    bool      `json:"operational"`
-	Timestamp      time.Time `json:"timestamp"`
+	Type         string    `json:"type"`
+	FacilityID   string    `json:"facility_id"`
+	FacilityName string    `json:"facility_name"`
+	FacilityType string    `json:"facility_type"` // BRIDGE, HOSPITAL, SCHOOL, PORT
+	Latitude     float64   `json:"latitude"`
+	Longitude    float64   `json:"longitude"`
+	DamageLevel  string    `json:"damage_level"` // NONE, MINOR, MODERATE, SEVERE, COLLAPSED
+	Operational  bool      `json:"operational"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // PopulationEvent represents population/evacuation data
@@ -121,7 +121,7 @@ type AgencyAction struct {
 type HazardDeepDive struct {
 	FaultMechanism         string `json:"fault_mechanism"`          // e.g. Subduction Megathrust Thrust
 	EstimatedCoseismicSlip string `json:"estimated_coseismic_slip"` // e.g. 5.2 meters
-	AftershockRisk         string `json:"aftershock_risk"`         // e.g. HIGH (Probability M>6.5 in 48h: 78%)
+	AftershockRisk         string `json:"aftershock_risk"`          // e.g. HIGH (Probability M>6.5 in 48h: 78%)
 	TsunamiRunupEstimate   string `json:"tsunami_runup_estimate"`   // e.g. 8 - 15 meters
 	EvacuationWindowMin    int    `json:"evacuation_window_min"`    // Golden evacuation window
 }
@@ -252,16 +252,16 @@ func parseStringOrSlice(val interface{}) []string {
 
 // SystemStatus represents the overall system state
 type SystemStatus struct {
-	SeismicIntensity  float64          `json:"seismic_intensity"`
-	OceanStatus       string           `json:"ocean_status"`
-	WeatherStatus     string           `json:"weather_status"`
-	InfraStatus       string           `json:"infra_status"`
-	ActiveAlerts      int              `json:"active_alerts"`
-	RiskLevel         string           `json:"risk_level"`
-	TrendDirection    string           `json:"trend_direction"`
-	LastUpdate        time.Time        `json:"last_update"`
-	TsunamiScenario   *TsunamiScenario `json:"tsunami_scenario,omitempty"`
-	LatestAI          *AIAnalysis      `json:"latest_ai,omitempty"`
+	SeismicIntensity float64          `json:"seismic_intensity"`
+	OceanStatus      string           `json:"ocean_status"`
+	WeatherStatus    string           `json:"weather_status"`
+	InfraStatus      string           `json:"infra_status"`
+	ActiveAlerts     int              `json:"active_alerts"`
+	RiskLevel        string           `json:"risk_level"`
+	TrendDirection   string           `json:"trend_direction"`
+	LastUpdate       time.Time        `json:"last_update"`
+	TsunamiScenario  *TsunamiScenario `json:"tsunami_scenario,omitempty"`
+	LatestAI         *AIAnalysis      `json:"latest_ai,omitempty"`
 }
 
 // GovernanceInfo represents data governance metadata for a topic
@@ -298,4 +298,41 @@ type LifecyclePhase struct {
 	Latitude      float64   `json:"latitude,omitempty"`
 	Longitude     float64   `json:"longitude,omitempty"`
 	Timestamp     time.Time `json:"timestamp"`
+}
+
+// ConnectorInfo represents a Confluent Cloud connector
+type ConnectorInfo struct {
+	ID            string                 `json:"id"`
+	Name          string                 `json:"name"`
+	Status        string                 `json:"status"`
+	Type          string                 `json:"type"`
+	Class         string                 `json:"class"`
+	Topic         string                 `json:"topic"`
+	TasksActive   int                    `json:"tasks_active"`
+	TasksMax      int                    `json:"tasks_max"`
+	Throughput    string                 `json:"throughput"`
+	TotalRecords  int64                  `json:"total_records"`
+	LastHeartbeat time.Time              `json:"last_heartbeat"`
+	Config        map[string]interface{} `json:"config,omitempty"`
+}
+
+// ConnectorActionRequest represents a connector management action
+type ConnectorActionRequest struct {
+	Action string `json:"action"` // pause, resume, restart
+}
+
+// ConnectorActionResponse represents the result of a connector action
+type ConnectorActionResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
+// WebhookAlertPayload represents an alert received from HttpSink connector
+type WebhookAlertPayload struct {
+	AlertLevel           string                 `json:"alert_level"`
+	CorrelatedIndicators []string               `json:"correlated_indicators"`
+	TimeWindow           string                 `json:"time_window"`
+	Description          string                 `json:"description"`
+	Timestamp            time.Time              `json:"timestamp"`
+	Raw                  map[string]interface{} `json:"raw,omitempty"`
 }

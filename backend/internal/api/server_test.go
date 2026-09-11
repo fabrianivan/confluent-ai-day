@@ -9,6 +9,7 @@ import (
 
 	"gempa-sentinel/internal/agent"
 	"gempa-sentinel/internal/ai"
+	"gempa-sentinel/internal/connectors"
 	"gempa-sentinel/internal/hub"
 	"gempa-sentinel/internal/models"
 )
@@ -17,10 +18,10 @@ type mockSimulator struct{}
 
 func (m *mockSimulator) TriggerMegathrustScenario(id string) {}
 func (m *mockSimulator) TriggerVolcanicEscalation()          {}
-func (m *mockSimulator) TriggerTsunami()                    {}
+func (m *mockSimulator) TriggerTsunami()                     {}
 func (m *mockSimulator) TriggerReal2018Disaster()            {}
-func (m *mockSimulator) Reset()                             {}
-func (m *mockSimulator) GetStatus() models.SystemStatus     { return models.SystemStatus{} }
+func (m *mockSimulator) Reset()                              {}
+func (m *mockSimulator) GetStatus() models.SystemStatus      { return models.SystemStatus{} }
 
 func setupTestServer(t *testing.T) *Server {
 	h := hub.NewSSEHub()
@@ -34,8 +35,9 @@ func setupTestServer(t *testing.T) *Server {
 
 	pm := ai.NewProviderManager("gemini", providers)
 	ag := agent.NewStreamingDataAgent(pm, h)
+	connMgr := connectors.NewManager("test-cluster")
 
-	return NewServer(h, sim, pm, ag, "8080", "*")
+	return NewServer(h, sim, pm, ag, connMgr, "8080", "*")
 }
 
 func TestGetAndSetAIProvider(t *testing.T) {

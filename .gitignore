@@ -3,6 +3,9 @@
 .env*.local
 !.env.example
 
+# Generated connector configs
+connectors/.rendered/
+
 
 # Go binaries & build artifacts
 /backend/server

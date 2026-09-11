@@ -10,6 +10,7 @@ import type {
   ActivityIndex as ActivityIndexType,
   RealtimeEarthquakesData,
   VolcanoEruption,
+  InfrastructureEvent,
 } from '@/lib/types';
 import ActivityGauge from '@/components/ActivityGauge';
 import MetricCards from '@/components/MetricCards';
@@ -26,6 +27,8 @@ import GovernanceView from '@/components/GovernanceView';
 import SeismogramAnalysisModal from '@/components/SeismogramAnalysisModal';
 import VolcanoSeismographHub from '@/components/VolcanoSeismographHub';
 import WorkspaceNav, { WorkspaceTab } from '@/components/WorkspaceNav';
+import ConnectorsPanel from '@/components/ConnectorsPanel';
+import InfrastructureImpactPanel from '@/components/InfrastructureImpactPanel';
 
 const MapComponent = dynamic(() => import('@/components/Map'), {
   ssr: false,
@@ -316,6 +319,7 @@ export default function Home() {
   const [events, setEvents] = useState<LiveEvent[]>(INITIAL_EVENTS);
   const [realQuakes, setRealQuakes] = useState<RealtimeEarthquakesData | null>(INITIAL_QUAKES);
   const [volcanoes, setVolcanoes] = useState<VolcanoEruption[]>([]);
+  const [infrastructureEvents, setInfrastructureEvents] = useState<InfrastructureEvent[]>([]);
   const [selectedVolcano, setSelectedVolcano] = useState<string | null>('BMKG_REGIONAL');
   const [inspectingSeismogram, setInspectingSeismogram] = useState<VolcanoEruption | null>(null);
   const [dashboardMode, setDashboardMode] = useState<'REAL' | 'SIMULASI'>('REAL');
@@ -487,6 +491,17 @@ export default function Home() {
             );
             setEvents((prev) => [liveEvent, ...prev].slice(0, 50));
 
+            if (liveEvent.type === 'INFRASTRUCTURE' && liveEvent.data) {
+              const rawInfrastructure = liveEvent.data.data && typeof liveEvent.data.data === 'object'
+                ? liveEvent.data.data as Record<string, unknown>
+                : liveEvent.data;
+              const infrastructure = rawInfrastructure as unknown as InfrastructureEvent;
+              setInfrastructureEvents((prev) => [
+                infrastructure,
+                ...prev.filter((item) => item.facility_id !== infrastructure.facility_id),
+              ].slice(0, 12));
+            }
+
             if (liveEvent.type === 'SEISMIC') {
               fetchRealQuakes();
               fetchAI();
@@ -638,6 +653,7 @@ export default function Home() {
                   infraStatus={status?.infra_status ?? 'OPERASIONAL'}
                   activityIndex={activityIndex}
                 />
+                <InfrastructureImpactPanel events={infrastructureEvents} />
               </div>
             </div>
 
@@ -793,7 +809,12 @@ export default function Home() {
           </section>
         )}
 
-        {/* ==================== TAB 5: VOLCANO HUB ==================== */}
+        {/* ==================== TAB 5: CONFLUENT CONNECTORS & PIPELINE HUB ==================== */}
+        {activeWorkspaceTab === 'connectors' && (
+          <ConnectorsPanel />
+        )}
+
+        {/* ==================== TAB 6: VOLCANO HUB ==================== */}
         {activeWorkspaceTab === 'volcano' && (
           <VolcanoSeismographHub
             volcanoes={volcanoes}
