@@ -28,15 +28,15 @@ const DEFAULT_CONNECTORS: ConnectorInfo[] = [
   {
     id: 'lcc-12n3226',
     name: 'DatagenSource_SeismicTelemetry',
-    status: 'RUNNING',
+    status: 'DISABLED',
     type: 'source',
     class: 'DatagenSource',
     topic: 'gempa.stations',
-    tasks_active: 1,
+    tasks_active: 0,
     tasks_max: 1,
-    throughput: '1.5 rec/s',
-    total_records: 4920,
-    last_heartbeat: new Date().toISOString(),
+    throughput: '0 rec/s',
+    total_records: 0,
+    last_heartbeat: new Date(Date.now() - 86400000).toISOString(),
     config: {
       'connector.class': 'DatagenSource',
       'name': 'DatagenSource_SeismicTelemetry',
@@ -54,15 +54,15 @@ const DEFAULT_CONNECTORS: ConnectorInfo[] = [
   {
     id: 'lcc-alerts-sink',
     name: 'HttpSink_DisasterAlerts',
-    status: 'RUNNING',
+    status: 'DISABLED',
     type: 'sink',
     class: 'HttpSink',
     topic: 'gempa.correlated_alerts, gempa.tsunami_scenarios',
-    tasks_active: 1,
+    tasks_active: 0,
     tasks_max: 1,
-    throughput: '0.3 rec/s',
-    total_records: 340,
-    last_heartbeat: new Date().toISOString(),
+    throughput: '0 rec/s',
+    total_records: 0,
+    last_heartbeat: new Date(Date.now() - 86400000).toISOString(),
     config: {
       'connector.class': 'HttpSink',
       'name': 'HttpSink_DisasterAlerts',
@@ -84,6 +84,7 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string; 
   PAUSED: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.3)', text: '#fbbf24', dot: '#f59e0b' },
   FAILED: { bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.3)', text: '#ef4444', dot: '#ef4444' },
   PROVISIONING: { bg: 'rgba(59, 130, 246, 0.12)', border: 'rgba(59, 130, 246, 0.3)', text: '#38bdf8', dot: '#38bdf8' },
+  DISABLED: { bg: 'rgba(100, 116, 139, 0.12)', border: 'rgba(100, 116, 139, 0.3)', text: '#64748b', dot: '#475569' },
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -210,6 +211,11 @@ export default function ConnectorsPanel() {
     }
   };
 
+  // Determine if all connectors are disabled / no streaming data
+  const allDisabled = connectors.every(
+    (c) => c.status === 'DISABLED' || c.status === 'FAILED' || (c.total_records === 0 && c.throughput === '0 rec/s')
+  );
+
   return (
     <div className="connectors-panel">
       <div className="connectors-panel__header">
@@ -224,16 +230,18 @@ export default function ConnectorsPanel() {
                 fontWeight: 700,
                 padding: '3px 8px',
                 borderRadius: '4px',
-                background: 'rgba(255, 145, 0, 0.15)',
-                color: '#ff9800',
-                border: '1px solid rgba(255, 145, 0, 0.3)',
+                background: allDisabled ? 'rgba(100, 116, 139, 0.15)' : 'rgba(255, 145, 0, 0.15)',
+                color: allDisabled ? '#64748b' : '#ff9800',
+                border: `1px solid ${allDisabled ? 'rgba(100, 116, 139, 0.3)' : 'rgba(255, 145, 0, 0.3)'}`,
               }}
             >
-              CONFLUENT CLOUD (lkc-xqxxgr1)
+              {allDisabled ? 'CONFLUENT CLOUD — DISABLED' : 'CONFLUENT CLOUD (lkc-xqxxgr1)'}
             </span>
           </div>
           <p className="connectors-panel__subtitle">
-            Pipeline: DatagenSource → Kafka (gempa.stations) → Flink CEP → HttpSink → Emergency Webhooks
+            {allDisabled
+              ? 'Pipeline tidak aktif — Tidak ada data streaming dari Confluent Cloud'
+              : 'Pipeline: DatagenSource → Kafka (gempa.stations) → Flink CEP → HttpSink → Emergency Webhooks'}
           </p>
         </div>
 
@@ -244,7 +252,7 @@ export default function ConnectorsPanel() {
                 <span className="connectors-panel__stat-label">{c.name.replace(/_/g, ' ')}</span>
                 <span
                   className="connectors-panel__stat-value"
-                  style={{ color: STATUS_COLORS[c.status]?.text || STATUS_COLORS.RUNNING.text }}
+                  style={{ color: STATUS_COLORS[c.status]?.text || STATUS_COLORS.DISABLED.text }}
                 >
                   {c.total_records > 0 ? formatNumber(c.total_records) : '—'} events
                 </span>
@@ -266,45 +274,45 @@ export default function ConnectorsPanel() {
       </div>
 
       {/* Pipeline Architecture Diagram */}
-      <div className="connectors-panel__pipeline">
+      <div className="connectors-panel__pipeline" style={allDisabled ? { opacity: 0.45, filter: 'grayscale(0.7)' } : undefined}>
         <div className="pipeline-stage source">
           <div className="pipeline-stage__icon">📥</div>
           <div className="pipeline-stage__label">DatagenSource</div>
           <div className="pipeline-stage__topic">gempa.stations</div>
           <div className="pipeline-stage__connector">DatagenSource_SeismicTelemetry</div>
-          <div className="pipeline-stage__status running">RUNNING</div>
+          <div className={`pipeline-stage__status ${allDisabled ? 'disabled' : 'running'}`}>{allDisabled ? 'DISABLED' : 'RUNNING'}</div>
         </div>
-        <div className="pipeline-arrow">→</div>
+        <div className="pipeline-arrow" style={allDisabled ? { color: '#475569' } : undefined}>{allDisabled ? '✕' : '→'}</div>
         <div className="pipeline-stage kafka">
           <div className="pipeline-stage__icon">⚡</div>
           <div className="pipeline-stage__label">Kafka Topics</div>
           <div className="pipeline-stage__topic">gempa.seismic, stations, tsunami</div>
           <div className="pipeline-stage__connector">Cluster: lkc-xqxxgr1</div>
-          <div className="pipeline-stage__status running">ACTIVE</div>
+          <div className={`pipeline-stage__status ${allDisabled ? 'disabled' : 'running'}`}>{allDisabled ? 'OFFLINE' : 'ACTIVE'}</div>
         </div>
-        <div className="pipeline-arrow">→</div>
+        <div className="pipeline-arrow" style={allDisabled ? { color: '#475569' } : undefined}>{allDisabled ? '✕' : '→'}</div>
         <div className="pipeline-stage flink">
           <div className="pipeline-stage__icon">🔄</div>
           <div className="pipeline-stage__label">Flink CEP</div>
           <div className="pipeline-stage__topic">correlated_alerts, tsunami_scenarios</div>
-          <div className="pipeline-stage__connector">3 Jobs Running</div>
-          <div className="pipeline-stage__status running">PROCESSING</div>
+          <div className="pipeline-stage__connector">{allDisabled ? 'No Jobs' : '3 Jobs Running'}</div>
+          <div className={`pipeline-stage__status ${allDisabled ? 'disabled' : 'running'}`}>{allDisabled ? 'STOPPED' : 'PROCESSING'}</div>
         </div>
-        <div className="pipeline-arrow">→</div>
+        <div className="pipeline-arrow" style={allDisabled ? { color: '#475569' } : undefined}>{allDisabled ? '✕' : '→'}</div>
         <div className="pipeline-stage sink">
           <div className="pipeline-stage__icon">📤</div>
           <div className="pipeline-stage__label">HttpSink</div>
           <div className="pipeline-stage__topic">gempa.correlated_alerts</div>
           <div className="pipeline-stage__connector">HttpSink_DisasterAlerts</div>
-          <div className="pipeline-stage__status running">RUNNING</div>
+          <div className={`pipeline-stage__status ${allDisabled ? 'disabled' : 'running'}`}>{allDisabled ? 'DISABLED' : 'RUNNING'}</div>
         </div>
-        <div className="pipeline-arrow">→</div>
+        <div className="pipeline-arrow" style={allDisabled ? { color: '#475569' } : undefined}>{allDisabled ? '✕' : '→'}</div>
         <div className="pipeline-stage dashboard">
           <div className="pipeline-stage__icon">🖥️</div>
           <div className="pipeline-stage__label">Dashboard SSE</div>
           <div className="pipeline-stage__topic">/api/webhook/alerts</div>
-          <div className="pipeline-stage__connector">Real-time UI Updates</div>
-          <div className="pipeline-stage__status running">LISTENING</div>
+          <div className="pipeline-stage__connector">{allDisabled ? 'No Stream Data' : 'Real-time UI Updates'}</div>
+          <div className={`pipeline-stage__status ${allDisabled ? 'disabled' : 'running'}`}>{allDisabled ? 'IDLE' : 'LISTENING'}</div>
         </div>
       </div>
 
@@ -371,21 +379,21 @@ export default function ConnectorsPanel() {
                   <button
                     className="connector-btn connector-btn--primary"
                     onClick={() => handleAction(connector.name, 'pause')}
-                    disabled={isActionLoading || connector.status === 'PAUSED' || connector.status === 'FAILED'}
+                    disabled={isActionLoading || connector.status === 'PAUSED' || connector.status === 'FAILED' || connector.status === 'DISABLED'}
                   >
                     {isActionLoading ? '⏳' : '⏸️'} Pause
                   </button>
                   <button
                     className="connector-btn connector-btn--success"
                     onClick={() => handleAction(connector.name, 'resume')}
-                    disabled={isActionLoading || connector.status === 'RUNNING'}
+                    disabled={isActionLoading || connector.status === 'RUNNING' || connector.status === 'DISABLED'}
                   >
                     {isActionLoading ? '⏳' : '▶️'} Resume
                   </button>
                   <button
                     className="connector-btn connector-btn--warning"
                     onClick={() => handleAction(connector.name, 'restart')}
-                    disabled={isActionLoading}
+                    disabled={isActionLoading || connector.status === 'DISABLED'}
                   >
                     {isActionLoading ? '⏳' : '🔄'} Restart
                   </button>

@@ -3,50 +3,22 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const candidateBases = [
-    process.env.INTERNAL_BACKEND_URL,
-    process.env.NEXT_PUBLIC_API_URL,
-    process.env.NEXT_PUBLIC_API_BASE,
-    'http://localhost:8080',
-    'http://localhost:8081',
-  ].filter(Boolean) as string[];
-
-  for (const base of candidateBases) {
-    try {
-      const res = await fetch(`${base}/api/connectors`, {
-        signal: AbortSignal.timeout(1500),
-        cache: 'no-store',
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return NextResponse.json(data);
-        }
-      }
-    } catch {
-      // try next candidate
-    }
-  }
-
-  // Realistic live telemetry matching Confluent Cloud cluster lkc-xqxxgr1
+  // All Confluent Cloud connectors are DISABLED — no active streaming pipeline
   const now = new Date();
-  const elapsedSec = Math.floor((now.getTime() - new Date('2026-09-11T00:00:00Z').getTime()) / 1000);
-  const datagenRecords = 4280 + Math.floor(elapsedSec * 1.5);
-  const sinkRecords = 285 + Math.floor(elapsedSec * 0.15);
 
-  const fallbackConnectors = [
+  const disabledConnectors = [
     {
       id: 'lcc-12n3226',
       name: 'DatagenSource_SeismicTelemetry',
-      status: 'RUNNING',
+      status: 'DISABLED',
       type: 'source',
       class: 'DatagenSource',
       topic: 'gempa.stations',
-      tasks_active: 1,
+      tasks_active: 0,
       tasks_max: 1,
-      throughput: '1.5 rec/s',
-      total_records: datagenRecords,
-      last_heartbeat: new Date(now.getTime() - 2000).toISOString(),
+      throughput: '0 rec/s',
+      total_records: 0,
+      last_heartbeat: new Date(now.getTime() - 86400000).toISOString(),
       config: {
         'connector.class': 'DatagenSource',
         'name': 'DatagenSource_SeismicTelemetry',
@@ -64,15 +36,15 @@ export async function GET() {
     {
       id: 'lcc-alerts-sink',
       name: 'HttpSink_DisasterAlerts',
-      status: 'RUNNING',
+      status: 'DISABLED',
       type: 'sink',
       class: 'HttpSink',
       topic: 'gempa.correlated_alerts, gempa.tsunami_scenarios',
-      tasks_active: 1,
+      tasks_active: 0,
       tasks_max: 1,
-      throughput: '0.3 rec/s',
-      total_records: sinkRecords,
-      last_heartbeat: new Date(now.getTime() - 5000).toISOString(),
+      throughput: '0 rec/s',
+      total_records: 0,
+      last_heartbeat: new Date(now.getTime() - 86400000).toISOString(),
       config: {
         'connector.class': 'HttpSink',
         'name': 'HttpSink_DisasterAlerts',
@@ -89,5 +61,5 @@ export async function GET() {
     },
   ];
 
-  return NextResponse.json(fallbackConnectors);
+  return NextResponse.json(disabledConnectors);
 }

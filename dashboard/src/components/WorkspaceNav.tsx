@@ -55,8 +55,8 @@ export default function WorkspaceNav({
       id: 'connectors',
       label: 'CONFLUENT CONNECTORS',
       icon: '🔌',
-      badge: '2 ACTIVE',
-      badgeColor: '#ff9100',
+      badge: 'DISABLED',
+      badgeColor: '#64748b',
     },
     {
       id: 'all',

@@ -120,14 +120,18 @@ export default function StatusBar({
                   borderColor: 'rgba(239, 68, 68, 0.5)',
                   color: '#f87171',
                 }
-              : undefined
+              : {
+                  background: 'rgba(100, 116, 139, 0.15)',
+                  borderColor: 'rgba(100, 116, 139, 0.35)',
+                  color: '#94a3b8',
+                }
           }
         >
-          <span>{dashboardMode === 'SIMULASI' ? '⚠️' : '☁️'}</span>
+          <span>{dashboardMode === 'SIMULASI' ? '⚠️' : '⏸️'}</span>
           <span>
             {dashboardMode === 'SIMULASI'
               ? 'SIMULASI (DUMMY DRILL)'
-              : 'Confluent Cloud (us-east-2)'}
+              : 'Confluent Cloud — Disabled'}
           </span>
         </div>
       </div>

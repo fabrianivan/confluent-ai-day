@@ -8,7 +8,7 @@ A streaming intelligence system that continuously monitors BMKG seismic networks
 
 > ⚠️ **Important**: This system provides real-time seismic decision-support and rapid impact estimation. It is **NOT** an earthquake prediction system.
 
-**Live dashboard:** [https://dashboard-six-psi-45.vercel.app (disabled)](https://inatews-sentinel.vercel.app/) (Confluent disabled)
+**Live dashboard:** [https://inatews-sentinel.vercel.app](https://inatews-sentinel.vercel.app)
 
 <img width="1512" height="867" alt="Screenshot 2026-09-11 at 15 30 26" src="https://github.com/user-attachments/assets/f7fa35e1-8cfb-4468-8e17-b9e1203322c5" />
 
@@ -150,3 +150,11 @@ The streaming agent operates an event-driven OODA (Observe-Orient-Decide-Act) re
 - **Continuous Sliding-Window Memory**: Evaluates seismic swarms, tremor spikes, tsunami buoy anomalies, and infrastructure strain.
 - **Multi-Agency Directive Dispatch**: Dispatches automated tactical directives for BMKG (tsunami sirens), BNPB (evacuation corridors), KEMENHUB (bridge & maritime transit suspension), and BASARNAS (search & rescue deployment).
 - **Token-by-Token Live Streaming Chat**: `/api/agent/chat/stream` streams AI response tokens in real-time over SSE directly into the dashboard.
+
+---
+
+## License & Copyright
+
+This project is licensed under the [MIT License](LICENSE).
+
+Copyright (c) 2026 Fabrian Ivan Prasetya. All rights reserved.
