@@ -1965,16 +1965,35 @@ body::before {
 /* ===== TACTICAL KPI RIBBON ===== */
 .tactical-ribbon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--gap-md);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
   margin-bottom: 2px;
+  align-items: stretch;
+}
+
+@media (max-width: 1400px) {
+  .tactical-ribbon {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .tactical-ribbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .tactical-ribbon {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ribbon-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: 12px 14px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1982,6 +2001,8 @@ body::before {
   transition: all 0.25s ease;
   position: relative;
   overflow: hidden;
+  min-height: 154px;
+  height: 100%;
 }
 
 .ribbon-card:hover {
@@ -2019,8 +2040,27 @@ body::before {
   background: linear-gradient(90deg, #0ea5e9, #38bdf8);
 }
 
+.ribbon-card--ai {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.05) 0%, rgba(18, 12, 28, 0.95) 100%);
+}
+
 .ribbon-card--ai::before {
   background: linear-gradient(90deg, #a855f7, #06b6d4);
+}
+
+.ribbon-card--ai .ribbon-card__subtext {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.4) transparent;
+}
+
+.ribbon-card--ai .ribbon-card__subtext::-webkit-scrollbar {
+  width: 3px;
+}
+
+.ribbon-card--ai .ribbon-card__subtext::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.4);
+  border-radius: 3px;
 }
 
 .ribbon-card__header {
@@ -2029,6 +2069,33 @@ body::before {
   justify-content: space-between;
   gap: 6px;
   margin-bottom: 8px;
+  flex-shrink: 0;
+  height: 22px;
+}
+
+.ribbon-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+}
+
+.ribbon-card__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.ribbon-card__footer {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
 }
 
 .ribbon-card__tag {
@@ -2176,7 +2243,10 @@ body::before {
 .ribbon-card__footer-meta {
   font-size: 10px;
   color: var(--text-muted);
-  margin-top: 6px;
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .ribbon-card__bar-track {

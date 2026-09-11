@@ -67,27 +67,34 @@ export default function TacticalRibbon({
           <span className="ribbon-card__time">{latestQuake?.Jam || 'LIVE'}</span>
         </div>
         <div className="ribbon-card__body">
-          <div className="ribbon-card__mag-wrap">
-            <div className={`ribbon-card__mag-badge ${mag >= 7.0 ? 'ribbon-card__mag-badge--critical' : mag >= 5.0 ? 'ribbon-card__mag-badge--high' : 'ribbon-card__mag-badge--normal'}`}>
-              M{mag > 0 ? mag.toFixed(1) : '—'}
+          <div className="ribbon-card__main">
+            <div className="ribbon-card__mag-wrap">
+              <div className={`ribbon-card__mag-badge ${mag >= 7.0 ? 'ribbon-card__mag-badge--critical' : mag >= 5.0 ? 'ribbon-card__mag-badge--high' : 'ribbon-card__mag-badge--normal'}`}>
+                M{mag > 0 ? mag.toFixed(1) : '—'}
+              </div>
+              <div className="ribbon-card__depth-wrap">
+                <span className="ribbon-card__depth">Kedalaman {depth}</span>
+                <span className="ribbon-card__coords">{latestQuake?.Coordinates || 'Indonesia'}</span>
+              </div>
             </div>
-            <div className="ribbon-card__depth-wrap">
-              <span className="ribbon-card__depth">Kedalaman {depth}</span>
-              <span className="ribbon-card__coords">{latestQuake?.Coordinates || 'Indonesia'}</span>
+            <div className="ribbon-card__location" title={wilayah}>
+              📍 {wilayah}
+            </div>
+            <div className="ribbon-card__subtext" style={{ fontSize: '10px', color: '#94a3b8' }}>
+              Subduksi Megathrust • InaTEWS BMKG
             </div>
           </div>
-          <div className="ribbon-card__location" title={wilayah}>
-            📍 {wilayah}
+          <div className="ribbon-card__footer">
+            {isTsunamiThreat ? (
+              <div className="ribbon-card__advisory ribbon-card__advisory--danger" style={{ margin: 0 }}>
+                🚨 {tsunamiPotensi}
+              </div>
+            ) : (
+              <div className="ribbon-card__footer-meta" style={{ color: '#10b981', margin: 0 }}>
+                ✓ {tsunamiPotensi}
+              </div>
+            )}
           </div>
-          {isTsunamiThreat ? (
-            <div className="ribbon-card__advisory ribbon-card__advisory--danger">
-              🚨 {tsunamiPotensi}
-            </div>
-          ) : (
-            <div className="ribbon-card__footer-meta" style={{ color: '#10b981' }}>
-              ✓ {tsunamiPotensi}
-            </div>
-          )}
         </div>
       </div>
 
@@ -150,50 +157,45 @@ export default function TacticalRibbon({
         </div>
 
         <div className="ribbon-card__body">
-          <div className="ribbon-card__mag-wrap">
-            <div
-              className={`ribbon-card__mag-badge ${
-                usgsMag >= 7.0
-                  ? 'ribbon-card__mag-badge--critical'
-                  : usgsMag >= 5.0
-                  ? 'ribbon-card__mag-badge--high'
-                  : 'ribbon-card__mag-badge--normal'
-              }`}
-              style={
-                usgsMag < 5.0
-                  ? {
-                      background: 'rgba(14, 165, 233, 0.18)',
-                      borderColor: 'rgba(14, 165, 233, 0.5)',
-                      color: '#38bdf8',
-                    }
-                  : undefined
-              }
-            >
-              M{usgsMag > 0 ? usgsMag.toFixed(1) : '—'}
+          <div className="ribbon-card__main">
+            <div className="ribbon-card__mag-wrap">
+              <div
+                className={`ribbon-card__mag-badge ${
+                  usgsMag >= 7.0
+                    ? 'ribbon-card__mag-badge--critical'
+                    : usgsMag >= 5.0
+                    ? 'ribbon-card__mag-badge--high'
+                    : 'ribbon-card__mag-badge--normal'
+                }`}
+                style={
+                  usgsMag < 5.0
+                    ? {
+                        background: 'rgba(14, 165, 233, 0.18)',
+                        borderColor: 'rgba(14, 165, 233, 0.5)',
+                        color: '#38bdf8',
+                      }
+                    : undefined
+                }
+              >
+                M{usgsMag > 0 ? usgsMag.toFixed(1) : '—'}
+              </div>
+              <div className="ribbon-card__depth-wrap">
+                <span className="ribbon-card__depth">Kedalaman {usgsDepth}</span>
+                <span className="ribbon-card__coords" style={{ color: '#94a3b8' }}>
+                  {usgsCoords}
+                </span>
+              </div>
             </div>
-            <div className="ribbon-card__depth-wrap">
-              <span className="ribbon-card__depth">Kedalaman {usgsDepth}</span>
-              <span className="ribbon-card__coords" style={{ color: '#94a3b8' }}>
-                {usgsCoords}
-              </span>
+
+            <div className="ribbon-card__location" title={usgsPlace}>
+              🌐 {usgsPlace}
+            </div>
+            <div className="ribbon-card__subtext" style={{ fontSize: '10px', color: '#94a3b8' }}>
+              Katalog USGS NEIC Indo-Pasifik
             </div>
           </div>
 
-          <div className="ribbon-card__location" title={usgsPlace}>
-            🌐 {usgsPlace}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: '6px',
-              fontSize: '11px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-              paddingTop: '6px',
-            }}
-          >
+          <div className="ribbon-card__footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             {currentUsgs && onFocusMap ? (
               <button
                 type="button"
@@ -244,87 +246,111 @@ export default function TacticalRibbon({
         </div>
       </div>
 
-      {/* CARD 2: National Seismic Intensity (MMI) */}
+      {/* CARD 3: National Seismic Intensity (MMI) */}
       <div className="ribbon-card">
         <div className="ribbon-card__header">
           <span className="ribbon-card__tag">📊 FLINK STREAM CEP</span>
           <span className="ribbon-card__badge ribbon-card__badge--cyan">1-MIN TUMBLE</span>
         </div>
         <div className="ribbon-card__body">
-          <div className="ribbon-card__stat-row">
-            <span className="ribbon-card__stat-val" style={{
-              color: intensity > 60 ? '#ef4444' : intensity > 35 ? '#f59e0b' : '#10b981',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {intensity.toFixed(1)}%
-            </span>
-            <span className="ribbon-card__stat-unit">MMI INDEX</span>
+          <div className="ribbon-card__main">
+            <div className="ribbon-card__stat-row">
+              <span className="ribbon-card__stat-val" style={{
+                color: intensity > 60 ? '#ef4444' : intensity > 35 ? '#f59e0b' : '#10b981',
+                fontFamily: "'JetBrains Mono', monospace",
+              }}>
+                {intensity.toFixed(1)}%
+              </span>
+              <span className="ribbon-card__stat-unit">MMI INDEX</span>
+            </div>
+            <div className="ribbon-card__subtext">
+              <span>Trend: <strong style={{ color: intensity > 60 ? '#ef4444' : '#10b981' }}>{activityIndex?.trend_direction || status?.trend_direction || 'NOMINAL'}</strong></span>
+            </div>
+            <div className="ribbon-card__bar-track">
+              <div
+                className="ribbon-card__bar-fill"
+                style={{
+                  width: `${Math.min(100, Math.max(5, intensity))}%`,
+                  background: intensity > 60 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #10b981, #06b6d4)',
+                }}
+              />
+            </div>
+            <div className="ribbon-card__subtext" style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px' }}>
+              Window 60s • Pipeline RocksDB CEP
+            </div>
           </div>
-          <div className="ribbon-card__subtext">
-            <span>Trend: <strong>{activityIndex?.trend_direction || status?.trend_direction || 'NOMINAL'}</strong></span>
-          </div>
-          <div className="ribbon-card__bar-track">
-            <div
-              className="ribbon-card__bar-fill"
-              style={{
-                width: `${Math.min(100, Math.max(5, intensity))}%`,
-                background: intensity > 60 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #10b981, #06b6d4)',
-              }}
-            />
+          <div className="ribbon-card__footer">
+            <div className="ribbon-card__footer-meta" style={{ margin: 0 }}>
+              Throughput: <strong style={{ color: '#38bdf8' }}>~14.8k msg/s</strong>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* CARD 3: IOC UNESCO Sea Level & InaTEWS */}
+      {/* CARD 4: IOC UNESCO Sea Level & InaTEWS */}
       <div className="ribbon-card">
         <div className="ribbon-card__header">
           <span className="ribbon-card__tag">🌊 INATEWS DART & IOC</span>
           <span className="ribbon-card__badge ribbon-card__badge--blue">{tideCount} STASIUN</span>
         </div>
         <div className="ribbon-card__body">
-          <div className="ribbon-card__stat-row">
-            <span className="ribbon-card__stat-val" style={{
-              color: status?.ocean_status?.includes('TSUNAMI') ? '#ff2a5f' : '#10b981',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {status?.ocean_status?.includes('TSUNAMI') ? 'ANOMALI' : 'NOMINAL'}
-            </span>
-            <span className="ribbon-card__stat-unit">MUKA LAUT (±0.04m)</span>
+          <div className="ribbon-card__main">
+            <div className="ribbon-card__stat-row">
+              <span className="ribbon-card__stat-val" style={{
+                color: status?.ocean_status?.includes('TSUNAMI') ? '#ff2a5f' : '#10b981',
+                fontFamily: "'JetBrains Mono', monospace",
+              }}>
+                {status?.ocean_status?.includes('TSUNAMI') ? 'ANOMALI' : 'NOMINAL'}
+              </span>
+              <span className="ribbon-card__stat-unit">MUKA LAUT (±0.04m)</span>
+            </div>
+            <div className="ribbon-card__subtext">
+              <span>InaTEWS DART Buoy: <strong style={{ color: '#10b981' }}>8/8 ONLINE</strong></span>
+            </div>
+            <div className="ribbon-card__subtext" style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+              Sensor BPR Dasar Laut: <strong style={{ color: '#34d399' }}>Aman</strong>
+            </div>
           </div>
-          <div className="ribbon-card__subtext">
-            <span>InaTEWS DART Buoy: <strong style={{ color: '#10b981' }}>8/8 ONLINE</strong></span>
-          </div>
-          <div className="ribbon-card__footer-meta">
-            Sensor BPR Dasar Laut: <strong style={{ color: '#34d399' }}>Aman (Nominal)</strong>
+          <div className="ribbon-card__footer">
+            <div className="ribbon-card__footer-meta" style={{ margin: 0 }}>
+              IOC UNESCO Tide: <strong style={{ color: '#38bdf8' }}>{tideCount} Stasiun Aktif</strong>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* CARD 4: BMKG Broadband Network */}
+      {/* CARD 5: BMKG Broadband Network */}
       <div className="ribbon-card">
         <div className="ribbon-card__header">
           <span className="ribbon-card__tag">📡 BMKG SEISMOMETER</span>
           <span className="ribbon-card__badge ribbon-card__badge--green">{stationCount} AKTIF</span>
         </div>
         <div className="ribbon-card__body">
-          <div className="ribbon-card__stat-row">
-            <span className="ribbon-card__stat-val" style={{ color: '#34d399', fontFamily: "'JetBrains Mono', monospace" }}>
-              ONLINE
-            </span>
-            <span className="ribbon-card__stat-unit">PGA &lt; 0.005g</span>
+          <div className="ribbon-card__main">
+            <div className="ribbon-card__stat-row">
+              <span className="ribbon-card__stat-val" style={{ color: '#34d399', fontFamily: "'JetBrains Mono', monospace" }}>
+                ONLINE
+              </span>
+              <span className="ribbon-card__stat-unit">PGA &lt; 0.005g</span>
+            </div>
+            <div className="ribbon-card__subtext">
+              <span>Broadband: <strong style={{ color: '#34d399' }}>{stationCount} Stasiun</strong> Aktif</span>
+            </div>
+            <div className="ribbon-card__subtext" style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              LEM • JATS • CBJI • YOGI • PLAI
+            </div>
           </div>
-          <div className="ribbon-card__subtext">
-            <span>LEM • JATS • CBJI • YOGI • PLAI</span>
-          </div>
-          <div className="ribbon-card__footer-meta">
-            Kualitas Sinyal: <strong style={{ color: '#34d399' }}>99.8% (Nominal)</strong>
+          <div className="ribbon-card__footer">
+            <div className="ribbon-card__footer-meta" style={{ margin: 0 }}>
+              Kualitas Sinyal: <strong style={{ color: '#34d399' }}>99.8% (Nominal)</strong>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* CARD 5: AI Intelligence Status (Gemini / Bedrock) */}
+      {/* CARD 6: AI Intelligence Status (Gemini / Bedrock) */}
       <div className="ribbon-card ribbon-card--ai">
-        <div className="ribbon-card__header" style={{ gap: '6px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div className="ribbon-card__header">
           <span
             className="ribbon-card__tag"
             style={{
@@ -347,43 +373,48 @@ export default function TacticalRibbon({
           </span>
         </div>
         <div className="ribbon-card__body">
-          <div className="ribbon-card__stat-row">
-            <span
-              className="ribbon-card__stat-val"
+          <div className="ribbon-card__main">
+            <div className="ribbon-card__stat-row">
+              <span
+                className="ribbon-card__stat-val"
+                style={{
+                  color:
+                    aiAnalysis?.status === 'CRITICAL'
+                      ? '#ef4444'
+                      : aiAnalysis?.status === 'HIGH'
+                      ? '#f59e0b'
+                      : '#10b981',
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {aiAnalysis?.status || 'NORMAL'}
+              </span>
+              <span className="ribbon-card__stat-unit">
+                Conf: {Math.round((aiAnalysis?.confidence ?? 0.96) * 100)}%
+              </span>
+            </div>
+            <div
+              className="ribbon-card__subtext"
               style={{
-                color:
-                  aiAnalysis?.status === 'CRITICAL'
-                    ? '#ef4444'
-                    : aiAnalysis?.status === 'HIGH'
-                    ? '#f59e0b'
-                    : '#10b981',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '10.5px',
+                lineHeight: '1.4',
+                color: '#e2e8f0',
+                wordBreak: 'break-word',
+                marginTop: '4px',
+                maxHeight: '48px',
+                overflowY: 'auto',
+                paddingRight: '2px',
               }}
+              title={aiAnalysis?.assessment || 'Monitoring aktif seluruh koridor subduksi'}
             >
-              {aiAnalysis?.status || 'NORMAL'}
-            </span>
-            <span className="ribbon-card__stat-unit">
-              Conf: {Math.round((aiAnalysis?.confidence ?? 0.96) * 100)}%
-            </span>
+              {aiAnalysis?.assessment || 'Monitoring aktif seluruh koridor subduksi'}
+            </div>
           </div>
-          <div
-            className="ribbon-card__subtext"
-            style={{
-              fontSize: '11px',
-              lineHeight: '1.45',
-              color: '#e2e8f0',
-              wordBreak: 'break-word',
-              whiteSpace: 'normal',
-              overflow: 'visible',
-              maxHeight: 'none',
-              marginTop: '4px',
-            }}
-            title={aiAnalysis?.assessment || 'Monitoring aktif seluruh koridor subduksi'}
-          >
-            {aiAnalysis?.assessment || 'Monitoring aktif seluruh koridor subduksi'}
-          </div>
-          <div className="ribbon-card__footer-meta" style={{ color: '#94a3b8' }}>
-            Latency: <strong>{aiAnalysis?.latency_ms || 280}ms</strong>
+          <div className="ribbon-card__footer">
+            <div className="ribbon-card__footer-meta" style={{ color: '#94a3b8', margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <span>Latency: <strong style={{ color: '#c084fc' }}>{aiAnalysis?.latency_ms || 280}ms</strong></span>
+              <span style={{ fontSize: '9px', color: '#64748b' }}>AI Realtime</span>
+            </div>
           </div>
         </div>
       </div>
