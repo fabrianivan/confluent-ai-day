@@ -158,3 +158,12 @@ The streaming agent operates an event-driven OODA (Observe-Orient-Decide-Act) re
 This project is licensed under the [MIT License](LICENSE).
 
 Copyright (c) 2026 Fabrian Ivan Prasetya. All rights reserved.
+
+### Open Source & Public APIs
+This application utilizes public data and Open Source / Open Data APIs provided by:
+- **BMKG (InaTEWS)** — National Earthquake & Tsunami Data Feeds
+- **USGS** — Earthquake Hazards Program Real-time GeoJSON API
+- **IOC / UNESCO** — Sea Level Station Monitoring Facility (Tide Gauges)
+- **MAGMA Indonesia / PVMBG** — Real-time Volcanic Activity Reports
+- **Open-Meteo** — Real-time Meteorology & Weather API
+

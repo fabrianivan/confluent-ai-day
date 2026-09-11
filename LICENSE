@@ -19,3 +19,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+### Third-Party & Open Source APIs Attribution
+
+This project connects to and consumes data from external open-source, open-data, and public APIs:
+- **BMKG (Badan Meteorologi, Klimatologi, dan Geofisika)** — Open seismic and disaster data feeds (InaTEWS).
+- **USGS (United States Geological Survey)** — Earthquake Hazards Program Real-time GeoJSON feeds (Public Domain).
+- **IOC / UNESCO (Intergovernmental Oceanographic Commission)** — Sea Level Station Monitoring Facility (Open Access).
+- **MAGMA Indonesia / PVMBG (Pusat Vulkanologi dan Mitigasi Bencana Geologi)** — Volcanic activity reports.
+- **Open-Meteo API** — Weather, marine forecast, and atmospheric data (Open Database License / Non-Commercial/Attribution terms).
+
+All external data sources, APIs, trademarks, and logos belong to their respective organizations and creators.
+
